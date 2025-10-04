@@ -6,7 +6,8 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     /**
-     * Run the migrations.
+     * Membuat tabel `search_histories` untuk menyimpan
+     * kata kunci dan metadata hasil teratas.
      */
     public function up(): void
     {
@@ -22,7 +23,7 @@ return new class extends Migration {
     }
 
     /**
-     * Reverse the migrations.
+     * Menghapus tabel jika migrasi di-rollback.
      */
     public function down(): void
     {

@@ -9,12 +9,21 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
+/**
+ * Meng-handle permintaan pencarian Klarifikasi.id.
+ * Menyambungkan frontend Flutter dengan service GoogleSearchService,
+ * serta menyimpan riwayat ke database.
+ */
 class SearchController extends Controller
 {
     public function __construct(private readonly GoogleSearchService $service)
     {
     }
 
+    /**
+     * Menerima query dari frontend, memvalidasi, memanggil Google, dan
+     * menyimpan riwayat pencarian.
+     */
     public function search(Request $request): JsonResponse
     {
         try {
@@ -52,6 +61,9 @@ class SearchController extends Controller
         ]);
     }
 
+    /**
+     * Mengembalikan riwayat pencarian terbaru dengan pagination sederhana.
+     */
     public function history(Request $request): JsonResponse
     {
         $perPage = (int) $request->query('per_page', 20);

@@ -1,20 +1,39 @@
 # Klarifikasi.id-backend
 
-Backend Laravel untuk aplikasi Klarifikasi.id yang menyediakan endpoint pencarian hoaks.
+Backend Laravel untuk aplikasi Klarifikasi.id. Menyediakan REST API pencarian hoaks dan pencatatan riwayat.
 
-## Fitur
+## Struktur Direktori
+- `app/`
+  - `Http/Controllers/`: `SearchController` berisi logic pencarian & histori.
+  - `Models/`: `SearchHistory` merepresentasikan tabel riwayat.
+  - `Providers/`: konfigurasi service Laravel.
+- `config/`: file konfigurasi Laravel (app, database, services, dll.).
+- `database/`
+  - `migrations/`: definisi skema (mis. `2025_10_04_000000_create_search_histories_table.php`).
+  - `seeders/`: stub untuk pengisian data awal.
+- `routes/`: definisi routing (`api.php` untuk endpoint REST, `web.php` untuk routing web).
+- `resources/`: view, asset, dan file bahasa bila dibutuhkan.
+- `public/`: entry point HTTP (`index.php`) dan asset publik.
+- `storage/`: cache, log, dan file terunggah.
+- `tests/`: test feature/unit Laravel.
 
-- Pencarian hoaks melalui layanan Google Custom Search.
-- Penyimpanan riwayat pencarian pada basis data.
+## Fitur Utama
+- Endpoint `POST /api/search` meneruskan query ke Google Custom Search dan menyimpan hasil utama.
+- Endpoint `GET /api/history` mengembalikan riwayat pencarian dengan pagination.
 
 ## Setup Lokal
-
 ```bash
 composer install
 cp .env.example .env
 php artisan key:generate
+
+# Isi GOOGLE_CSE_KEY, GOOGLE_CSE_CX, GOOGLE_CSE_VERIFY_SSL dsb.
+
 php artisan migrate
 php artisan serve
 ```
 
-Pastikan variabel lingkungan untuk API key disesuaikan di file `.env`.
+## Catatan
+- Pastikan database sudah terkonfigurasi di `.env` (default sqlite tersedia).
+- Matikan `GOOGLE_CSE_VERIFY_SSL=false` hanya saat development lokal tanpa sertifikat.
+- Jalankan `php artisan test` untuk memastikan implementasi backend tetap stabil.
