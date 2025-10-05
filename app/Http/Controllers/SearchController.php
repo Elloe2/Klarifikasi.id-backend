@@ -74,4 +74,16 @@ class SearchController extends Controller
 
         return response()->json($histories);
     }
+
+    /**
+     * Menghapus seluruh riwayat pencarian.
+     */
+    public function clear(): JsonResponse
+    {
+        SearchHistory::query()->delete();
+
+        return response()->json([
+            'message' => 'Riwayat pencarian berhasil dihapus.',
+        ]);
+    }
 }

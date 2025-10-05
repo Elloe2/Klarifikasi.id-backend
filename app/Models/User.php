@@ -6,11 +6,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasApiTokens;
 
     /**
      * The attributes that are mass assignable.
@@ -21,6 +22,9 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'birth_date',
+        'education_level',
+        'institution',
     ];
 
     /**
@@ -43,6 +47,33 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'birth_date' => 'date',
         ];
+    }
+
+    /**
+     * Get the user's age based on birth_date
+     */
+    public function getAgeAttribute(): ?int
+    {
+        if (!$this->birth_date) {
+            return null;
+        }
+
+        return now()->diffInYears($this->birth_date);
+    }
+
+    /**
+     * Get formatted education level for display
+     */
+    public function getEducationDisplayAttribute(): string
+    {
+        return match($this->education_level) {
+            'sd' => 'Sekolah Dasar',
+            'smp' => 'Sekolah Menengah Pertama',
+            'sma' => 'Sekolah Menengah Atas',
+            'kuliah' => 'Mahasiswa',
+            default => 'Tidak diisi',
+        };
     }
 }
