@@ -9,6 +9,7 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
 });
 
+// Route yang memerlukan autentikasi
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('auth')->group(function () {
         Route::get('/profile', [AuthController::class, 'profile']);
@@ -16,12 +17,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
     });
 
-    Route::post('/search', [SearchController::class, 'search'])
-        ->middleware('throttle:10,1');
-
     Route::get('/history', [SearchController::class, 'history'])
         ->middleware('throttle:30,1');
 
     Route::delete('/history', [SearchController::class, 'clear'])
         ->middleware('throttle:10,1');
 });
+
+// Route pencarian sementara tanpa autentikasi untuk testing
+Route::post('/search', [SearchController::class, 'search'])
+    ->middleware('throttle:10,1');

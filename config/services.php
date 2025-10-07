@@ -36,9 +36,9 @@ return [
     ],
 
     'google_cse' => [
-        'key' => env('GOOGLE_CSE_KEY'),
-        'cx' => env('GOOGLE_CSE_CX'),
-        'verify_ssl' => env('GOOGLE_CSE_VERIFY_SSL', true),
+        'key' => env('GOOGLE_SEARCH_API_KEY', env('GOOGLE_CSE_KEY')),
+        'cx' => env('GOOGLE_SEARCH_ENGINE_ID', env('GOOGLE_CSE_CX')),
+        'verify_ssl' => env('GOOGLE_VERIFY_SSL', true),
     ],
 
 ];
