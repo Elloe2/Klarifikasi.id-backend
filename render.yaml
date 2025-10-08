@@ -1,15 +1,10 @@
 services:
   - type: web
     name: klarifikasi-backend
-    runtime: nodejs
-    buildCommand: |
-      npm install -g serve
-      composer install --no-dev --optimize-autoloader
-      php artisan config:cache
-      php artisan route:cache
-      php artisan view:cache
-    startCommand: |
-      serve -s public -l 10000
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    buildCommand: docker build -t klarifikasi-backend .
+    startCommand: docker run -p $PORT:80 klarifikasi-backend
     envVars:
       - key: APP_ENV
         value: production
