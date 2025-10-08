@@ -24,23 +24,3 @@ services:
         value: 6242f5825dedb4b59
       - key: GOOGLE_CSE_VERIFY_SSL
         value: false
-
-  - type: pserv
-    name: klarifikasi-database
-    databaseName: klarifikasi_db
-    databaseUser: klarifikasi_user
-    disk:
-      name: klarifikasi-disk
-      mountPath: /var/lib/postgresql/data
-      sizeGB: 10
-
-databases:
-  - name: klarifikasi_db
-    databaseName: klarifikasi_db
-    user: klarifikasi_user
-    plan: starter
-
-disks:
-  - name: klarifikasi-disk
-    mountPath: /var/lib/postgresql/data
-    sizeGB: 10
