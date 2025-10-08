@@ -4,7 +4,6 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     buildCommand: docker build -t klarifikasi-backend .
-    startCommand: docker run -p $PORT:80 klarifikasi-backend
     envVars:
       - key: APP_ENV
         value: production
