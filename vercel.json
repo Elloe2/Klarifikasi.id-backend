@@ -2,7 +2,7 @@
   "version": 2,
   "functions": {
     "api/**/*.php": {
-      "runtime": "php-8.2"
+      "runtime": "vercel-php@8.2"
     }
   },
   "rewrites": [
