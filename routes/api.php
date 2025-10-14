@@ -31,3 +31,13 @@ Route::post('/search', [SearchController::class, 'search'])
 // Route untuk mendapatkan hasil pencarian berdasarkan query
 Route::get('/search/{query}', [SearchController::class, 'searchByQuery'])
     ->middleware('throttle:10,1');
+
+// Simple health check endpoint
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'timestamp' => now(),
+        'environment' => app()->environment(),
+        'database' => config('database.default'),
+    ]);
+});
