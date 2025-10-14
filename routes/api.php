@@ -24,6 +24,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('throttle:10,1');
 });
 
-// Route pencarian sementara tanpa autentikasi untuk testing
+// Route pencarian tanpa autentikasi untuk testing
 Route::post('/search', [SearchController::class, 'search'])
+    ->middleware('throttle:10,1');
+
+// Route untuk mendapatkan hasil pencarian berdasarkan query
+Route::get('/search/{query}', [SearchController::class, 'searchByQuery'])
     ->middleware('throttle:10,1');

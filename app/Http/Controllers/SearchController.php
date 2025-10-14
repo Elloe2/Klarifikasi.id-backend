@@ -86,4 +86,20 @@ class SearchController extends Controller
             'message' => 'Riwayat pencarian berhasil dihapus.',
         ]);
     }
+
+    /**
+     * Mencari berdasarkan query dari URL parameter
+     */
+    public function searchByQuery(Request $request, string $query): JsonResponse
+    {
+        // Buat request baru dengan query dari URL
+        $searchRequest = Request::create('/api/search', 'POST', ['query' => $query]);
+
+        // Copy headers yang diperlukan
+        $searchRequest->headers->set('Content-Type', 'application/json');
+        $searchRequest->headers->set('Accept', 'application/json');
+
+        // Panggil method search yang sudah ada
+        return $this->search($searchRequest);
+    }
 }

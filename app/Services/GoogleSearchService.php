@@ -21,7 +21,7 @@ class GoogleSearchService
             throw new RuntimeException('Google Custom Search credentials are not configured.');
         }
 
-        $verifySsl = false; // Nonaktifkan verifikasi SSL untuk testing
+        $verifySsl = config('services.google_cse.verify_ssl', false);
 
         try {
             $response = Http::withOptions([
