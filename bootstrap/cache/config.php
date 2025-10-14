@@ -98,7 +98,7 @@
     'fallback_locale' => 'en',
     'faker_locale' => 'en_US',
     'cipher' => 'AES-256-CBC',
-    'key' => 'base64:hQcBOjJeoU3tuBmIiy7bmZHm1braY5Sq9CKzwGbf1DM=',
+    'key' => 'base64:i5GaAfFydiJVzrsxSlXeO29Lu7PGI9JnlObVXg/ZIAo=',
     'previous_keys' => 
     array (
     ),
@@ -327,14 +327,14 @@
   ),
   'database' => 
   array (
-    'default' => 'sqlite',
+    'default' => 'mysql',
     'connections' => 
     array (
       'sqlite' => 
       array (
         'driver' => 'sqlite',
         'url' => NULL,
-        'database' => 'F:\\Klarifikasi.id\\Klarifikasi.id-backend\\database\\database.sqlite',
+        'database' => 'klarifikasi_id',
         'prefix' => '',
         'foreign_key_constraints' => true,
         'busy_timeout' => NULL,
@@ -348,7 +348,7 @@
         'url' => NULL,
         'host' => '127.0.0.1',
         'port' => '3306',
-        'database' => 'laravel',
+        'database' => 'klarifikasi_id',
         'username' => 'root',
         'password' => '',
         'unix_socket' => '',
@@ -368,7 +368,7 @@
         'url' => NULL,
         'host' => '127.0.0.1',
         'port' => '3306',
-        'database' => 'laravel',
+        'database' => 'klarifikasi_id',
         'username' => 'root',
         'password' => '',
         'unix_socket' => '',
@@ -387,8 +387,8 @@
         'driver' => 'pgsql',
         'url' => NULL,
         'host' => '127.0.0.1',
-        'port' => '5432',
-        'database' => 'laravel',
+        'port' => '3306',
+        'database' => 'klarifikasi_id',
         'username' => 'root',
         'password' => '',
         'charset' => 'utf8',
@@ -401,9 +401,9 @@
       array (
         'driver' => 'sqlsrv',
         'url' => NULL,
-        'host' => 'localhost',
-        'port' => '1433',
-        'database' => 'laravel',
+        'host' => '127.0.0.1',
+        'port' => '3306',
+        'database' => 'klarifikasi_id',
         'username' => 'root',
         'password' => '',
         'charset' => 'utf8',
@@ -646,7 +646,7 @@
         'driver' => 's3',
         'key' => '',
         'secret' => '',
-        'region' => 'us-east-1',
+        'region' => NULL,
         'bucket' => '',
         'url' => NULL,
         'endpoint' => NULL,
@@ -886,13 +886,13 @@
     ),
     'batching' => 
     array (
-      'database' => 'sqlite',
+      'database' => 'mysql',
       'table' => 'job_batches',
     ),
     'failed' => 
     array (
       'driver' => 'database-uuids',
-      'database' => 'sqlite',
+      'database' => 'mysql',
       'table' => 'failed_jobs',
     ),
   ),
@@ -946,8 +946,8 @@
     ),
     'google_cse' => 
     array (
-      'key' => '',
-      'cx' => '',
+      'key' => 'AIzaSyAFOdoaMwgurnjfnhGKn5GFy6_m2HKiGtA',
+      'cx' => '6242f5825dedb4b59',
       'verify_ssl' => true,
     ),
   ),
