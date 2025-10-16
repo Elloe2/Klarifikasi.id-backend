@@ -21,8 +21,18 @@ return [
 
     'allowed_origins' => [
         'https://www.klarifikasi.rj22d.my.id',
-        'http://localhost:3000',
+        'https://klarifikasi.netlify.app',
+        'http://localhost:3000',  // Flutter web port
         'http://localhost:3001',
+        'http://localhost:8080',
+        'http://localhost:8081',
+        'http://127.0.0.1:3000',  // Flutter web port
+        'http://127.0.0.1:8080',
+        'http://127.0.0.1:8081',
+        'http://localhost',
+        'http://127.0.0.1',
+        
+        '*', // Temporary untuk development - HAPUS di production
     ],
 
     'allowed_origins_patterns' => [],
