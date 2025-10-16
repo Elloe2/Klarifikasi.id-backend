@@ -38,6 +38,11 @@
 - **Error Monitoring**: Comprehensive logging dan error tracking
 - **Scalable Architecture**: Clean code structure untuk easy maintenance
 
+## 🌐 Production URLs
+
+- Backend (Laravel Cloud): https://klarifikasiid-backend-main-ki47jp.laravel.cloud/
+- Frontend (Cloudhebat): https://www.klarifikasi.rj22d.my.id/
+
 ## 🏗️ Arsitektur Aplikasi
 
 ```
@@ -56,7 +61,7 @@
 ### **Frontend (Flutter)**
 - **Framework**: Flutter 3.9.2 🚀
 - **State Management**: Provider Pattern 📱
-- **HTTP Client**: Dio dengan retry logic 🔄
+- **HTTP Client**: http package dengan timeout & retry (custom) 🔄
 - **Storage**: Flutter Secure Storage 🔐
 - **UI Framework**: Material 3 dengan custom theming 🎨
 
@@ -153,7 +158,7 @@ APP_NAME=Klarifikasi.id
 APP_ENV=local
 APP_KEY=base64:your_app_key
 APP_DEBUG=true
-APP_URL=http://localhost:8000
+APP_URL=https://klarifikasiid-backend-main-ki47jp.laravel.cloud
 
 # Database
 DB_CONNECTION=mysql
@@ -163,10 +168,10 @@ DB_DATABASE=klarifikasi_id
 DB_USERNAME=root
 DB_PASSWORD=your_password
 
-# Google Custom Search
-GOOGLE_CSE_KEY=AIzaSyAFOdoaMwgurnjfnhGKn5GFy6_m2HKiGtA
-GOOGLE_CSE_CX=6242f5825dedb4b59
-GOOGLE_CSE_VERIFY_SSL=false
+# Google Custom Search (gunakan ENV di server - jangan commit key)
+GOOGLE_CSE_KEY=your_api_key_here
+GOOGLE_CSE_CX=your_cx_id_here
+GOOGLE_CSE_VERIFY_SSL=true
 
 # Session & Cache
 SESSION_DRIVER=database
@@ -198,9 +203,11 @@ String get apiBaseUrl {
 ### **Search Routes**
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
-| POST | `/api/search` | Perform fact-checking search | ✅ |
+| POST | `/api/search` | Perform fact-checking search | ❌ |
 | GET | `/api/history` | Get search history | ✅ |
 | DELETE | `/api/history` | Clear search history | ✅ |
+
+> Catatan: `POST /api/search` saat ini tidak memerlukan autentikasi (throttle diterapkan). Jika ingin diwajibkan autentikasi, pindahkan route ke grup `auth:sanctum` di `routes/api.php`.
 
 ## 📱 Screenshots
 
@@ -221,17 +228,39 @@ String get apiBaseUrl {
 
 ### **Backend Deployment (Laravel)**
 
-**Shared Hosting (cPanel/Plesk):**
+**Laravel Cloud (Production):**
 ```bash
-# Upload semua files ke public_html
-# Set permissions: 755 untuk folders, 644 untuk files
-composer install --optimize-autoloader --no-dev
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+# Set environment variables di Laravel Cloud Dashboard
+# APP_ENV=production
+# APP_DEBUG=false
+# APP_URL=https://klarifikasiid-backend-main-ki47jp.laravel.cloud
+# GOOGLE_CSE_KEY=... (isi API Key)
+# GOOGLE_CSE_CX=... (isi CX)
+# GOOGLE_CSE_VERIFY_SSL=true
+
+# Refresh configuration cache
+php artisan config:clear && php artisan config:cache
 ```
 
 **VPS/Cloud Server:**
+### **CORS Configuration**
+
+Sesuaikan `config/cors.php` agar hanya origin frontend produksi yang diizinkan:
+
+```php
+// config/cors.php
+'paths' => ['api/*'],
+'allowed_origins' => ['https://www.klarifikasi.rj22d.my.id'],
+'allowed_methods' => ['*'],
+'allowed_headers' => ['*'],
+'supports_credentials' => false,
+```
+
+Setelah mengubah CORS:
+
+```bash
+php artisan config:clear && php artisan config:cache
+```
 ```bash
 # Clone repository
 git clone https://github.com/Elloe2/Klarifikasi.id-backend.git
