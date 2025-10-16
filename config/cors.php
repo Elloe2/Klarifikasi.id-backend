@@ -19,7 +19,11 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'https://www.klarifikasi.rj22d.my.id',
+        'http://localhost:3000',
+        'http://localhost:3001',
+    ],
 
     'allowed_origins_patterns' => [],
 
