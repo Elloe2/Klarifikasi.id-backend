@@ -12,7 +12,7 @@ Route::get('/health', function () {
         'timestamp' => now(),
         'environment' => app()->environment(),
         'database' => config('database.default'),
-        'version' => '1.0.0'
+        'version' => '2.0.0'
     ]);
 });
 
