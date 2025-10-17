@@ -41,4 +41,8 @@ return [
         'verify_ssl' => env('GOOGLE_CSE_VERIFY_SSL', false),
     ],
 
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+    ],
+
 ];

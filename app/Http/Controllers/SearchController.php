@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\GoogleSearchService;
+use App\Services\GeminiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,8 +17,10 @@ use RuntimeException;
  */
 class SearchController extends Controller
 {
-    public function __construct(private readonly GoogleSearchService $service)
-    {
+    public function __construct(
+        private readonly GoogleSearchService $searchService,
+        private readonly GeminiService $geminiService
+    ) {
     }
 
     /**
@@ -38,19 +41,20 @@ class SearchController extends Controller
         }
 
         try {
-            $items = $this->service->search($validated['query']);
+            $items = $this->searchService->search($validated['query']);
         } catch (RuntimeException $exception) {
             return response()->json([
                 'message' => $exception->getMessage(),
             ], 502);
         }
 
-        $firstItem = $items[0] ?? null;
-
+        // Analisis klaim dengan Gemini AI
+        $geminiAnalysis = $this->geminiService->analyzeClaim($validated['query']);
 
         return response()->json([
             'query' => $validated['query'],
             'results' => $items,
+            'gemini_analysis' => $geminiAnalysis,
         ]);
     }
 
