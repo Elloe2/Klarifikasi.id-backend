@@ -56,9 +56,4 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
     });
 
-    Route::get('/history', [SearchController::class, 'history'])
-        ->middleware('throttle:30,1');
-
-    Route::delete('/history', [SearchController::class, 'clear'])
-        ->middleware('throttle:10,1');
 });

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Services\GoogleSearchService;
-use App\Models\SearchHistory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -48,19 +47,6 @@ class SearchController extends Controller
 
         $firstItem = $items[0] ?? null;
 
-        // Simpan riwayat pencarian dengan user_id jika user sudah login
-        $userId = Auth::id();
-        if ($userId) {
-            // Hanya simpan riwayat jika user sudah login
-            SearchHistory::query()->create([
-                'user_id' => $userId, // Tambahkan user_id untuk memisahkan riwayat antar user
-                'query' => $validated['query'],
-                'results_count' => count($items),
-                'top_title' => $firstItem['title'] ?? null,
-                'top_link' => $firstItem['link'] ?? null,
-                'top_thumbnail' => $firstItem['thumbnail'] ?? null,
-            ]);
-        }
 
         return response()->json([
             'query' => $validated['query'],
@@ -68,38 +54,6 @@ class SearchController extends Controller
         ]);
     }
 
-    /**
-     * Mengembalikan riwayat pencarian terbaru dengan pagination sederhana.
-     * Hanya menampilkan riwayat dari user yang sedang login.
-     */
-    public function history(Request $request): JsonResponse
-    {
-        $perPage = (int) $request->query('per_page', 20);
-        $userId = Auth::id();
-
-        $histories = SearchHistory::query()
-            ->where('user_id', $userId) // Filter berdasarkan user yang sedang login
-            ->latest()
-            ->paginate(min($perPage, 50));
-
-        return response()->json($histories);
-    }
-
-    /**
-     * Menghapus seluruh riwayat pencarian dari user yang sedang login.
-     */
-    public function clear(): JsonResponse
-    {
-        $userId = Auth::id();
-        
-        SearchHistory::query()
-            ->where('user_id', $userId) // Hanya hapus riwayat dari user yang sedang login
-            ->delete();
-
-        return response()->json([
-            'message' => 'Riwayat pencarian berhasil dihapus.',
-        ]);
-    }
 
     /**
      * Mencari berdasarkan query dari URL parameter
