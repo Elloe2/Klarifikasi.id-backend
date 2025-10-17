@@ -35,7 +35,7 @@ Route::get('/test-google-cse', function () {
     }
 });
 
-// Route pencarian tanpa autentikasi untuk testing
+// Route pencarian dengan autentikasi opsional
 Route::post('/search', [SearchController::class, 'search'])
     ->middleware('throttle:10,1');
 
