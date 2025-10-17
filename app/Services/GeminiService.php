@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Log;
 class GeminiService
 {
     private string $apiKey;
-    private string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+    private string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
     public function __construct()
     {
@@ -30,8 +30,9 @@ class GeminiService
             $response = Http::timeout(30)
                 ->withHeaders([
                     'Content-Type' => 'application/json',
+                    'X-goog-api-key' => $this->apiKey,
                 ])
-                ->post($this->baseUrl . '?key=' . $this->apiKey, [
+                ->post($this->baseUrl, [
                     'contents' => [
                         [
                             'parts' => [
