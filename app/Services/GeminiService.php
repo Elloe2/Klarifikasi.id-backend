@@ -87,31 +87,17 @@ class GeminiService
      */
     private function buildPrompt(string $claim): string
     {
-        return "Sebagai AI fact-checker untuk Klarifikasi.id, analisis klaim berikut dan berikan jawaban yang singkat dan jelas:
+        return "Analisis klaim berikut dan berikan penjelasan yang jelas:
 
 KLAIM: \"{$claim}\"
 
-Instruksi:
-1. Analisis klaim tersebut berdasarkan pengetahuan umum dan fakta yang dapat diverifikasi
-2. Berikan jawaban dalam format JSON dengan struktur:
+Berikan jawaban dalam format JSON:
 {
-  \"verdict\": \"FAKTA\" atau \"HOAX\",
-  \"confidence\": \"Tinggi\", \"Sedang\", atau \"Rendah\",
-  \"explanation\": \"Penjelasan singkat mengapa klaim ini fakta atau hoax\",
-  \"sources\": \"Sumber atau referensi yang mendukung analisis\"
+  \"explanation\": \"Penjelasan singkat tentang klaim ini\",
+  \"sources\": \"Sumber atau referensi yang mendukung penjelasan\"
 }
 
-3. Jika klaim ambigu atau tidak dapat diverifikasi dengan pasti, gunakan \"HOAX\" dengan confidence \"Rendah\"
-4. Fokus pada analisis yang objektif dan dapat dipertanggungjawabkan
-5. Jawaban harus dalam bahasa Indonesia
-
-Contoh format jawaban:
-{
-  \"verdict\": \"FAKTA\",
-  \"confidence\": \"Tinggi\",
-  \"explanation\": \"Klaim ini benar berdasarkan data resmi yang dapat diverifikasi\",
-  \"sources\": \"Data resmi dari sumber terpercaya\"
-}";
+Jawaban harus dalam bahasa Indonesia dan objektif.";
     }
 
     /**
@@ -128,11 +114,9 @@ Contoh format jawaban:
                 $jsonString = substr($text, $jsonStart, $jsonEnd - $jsonStart + 1);
                 $data = json_decode($jsonString, true);
                 
-                if ($data && isset($data['verdict'])) {
+                if ($data && isset($data['explanation'])) {
                     return [
                         'success' => true,
-                        'verdict' => $data['verdict'],
-                        'confidence' => $data['confidence'] ?? 'Sedang',
                         'explanation' => $data['explanation'] ?? 'Tidak ada penjelasan tersedia',
                         'sources' => $data['sources'] ?? 'Tidak ada sumber tersedia',
                         'claim' => $claim,
@@ -154,21 +138,9 @@ Contoh format jawaban:
      */
     private function parseTextResponse(string $text, string $claim): array
     {
-        $verdict = 'HOAX';
-        $confidence = 'Rendah';
-        $explanation = 'Tidak dapat menganalisis klaim ini dengan pasti.';
-        
-        // Simple keyword detection
-        if (stripos($text, 'fakta') !== false || stripos($text, 'benar') !== false) {
-            $verdict = 'FAKTA';
-            $confidence = 'Sedang';
-        }
-        
         return [
             'success' => true,
-            'verdict' => $verdict,
-            'confidence' => $confidence,
-            'explanation' => $explanation,
+            'explanation' => 'Tidak dapat menganalisis klaim ini dengan pasti.',
             'sources' => 'Analisis AI Gemini',
             'claim' => $claim,
         ];
@@ -181,8 +153,6 @@ Contoh format jawaban:
     {
         return [
             'success' => false,
-            'verdict' => 'HOAX',
-            'confidence' => 'Rendah',
             'explanation' => 'Tidak dapat menganalisis klaim ini saat ini. Silakan coba lagi nanti.',
             'sources' => 'Sistem sedang mengalami gangguan',
             'claim' => $claim,
