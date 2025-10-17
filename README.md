@@ -160,13 +160,13 @@ APP_KEY=base64:your_app_key
 APP_DEBUG=true
 APP_URL=https://klarifikasiid-backend-main-ki47jp.laravel.cloud
 
-# Database
+# Database - Laravel Cloud MySQL
 DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
+DB_HOST=laravel-cloud-mysql-host
 DB_PORT=3306
-DB_DATABASE=klarifikasi_id
-DB_USERNAME=root
-DB_PASSWORD=your_password
+DB_DATABASE=laravel_cloud_db
+DB_USERNAME=laravel_cloud_user
+DB_PASSWORD=laravel_cloud_password
 
 # Google Custom Search (gunakan ENV di server - jangan commit key)
 GOOGLE_CSE_KEY=your_api_key_here

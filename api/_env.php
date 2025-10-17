@@ -22,9 +22,30 @@ if (!isset($_ENV['APP_TIMEZONE'])) {
     $_ENV['APP_TIMEZONE'] = 'Asia/Jakarta';
 }
 
-// Database configuration untuk Railway/MySQL
+// Database configuration untuk Laravel Cloud MySQL
 if (!isset($_ENV['DB_CONNECTION'])) {
     $_ENV['DB_CONNECTION'] = 'mysql';
+}
+
+// Laravel Cloud MySQL Database Configuration
+if (!isset($_ENV['DB_HOST'])) {
+    $_ENV['DB_HOST'] = 'laravel-cloud-mysql-host'; // Akan di-set di Laravel Cloud
+}
+
+if (!isset($_ENV['DB_PORT'])) {
+    $_ENV['DB_PORT'] = '3306';
+}
+
+if (!isset($_ENV['DB_DATABASE'])) {
+    $_ENV['DB_DATABASE'] = 'laravel_cloud_db'; // Akan di-set di Laravel Cloud
+}
+
+if (!isset($_ENV['DB_USERNAME'])) {
+    $_ENV['DB_USERNAME'] = 'laravel_cloud_user'; // Akan di-set di Laravel Cloud
+}
+
+if (!isset($_ENV['DB_PASSWORD'])) {
+    $_ENV['DB_PASSWORD'] = 'laravel_cloud_password'; // Akan di-set di Laravel Cloud
 }
 
 // Google Custom Search API (gunakan yang sudah ada)
