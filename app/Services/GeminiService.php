@@ -20,12 +20,12 @@ class GeminiService
     }
 
     /**
-     * Menganalisis klaim dan memberikan jawaban fakta atau hoax
+     * Menganalisis klaim dengan menggunakan hasil pencarian Google CSE
      */
-    public function analyzeClaim(string $claim): array
+    public function analyzeClaim(string $claim, array $searchResults = []): array
     {
         try {
-            $prompt = $this->buildPrompt($claim);
+            $prompt = $this->buildPrompt($claim, $searchResults);
             
             $response = Http::timeout(30)
                 ->withHeaders([
@@ -83,21 +83,40 @@ class GeminiService
     }
 
     /**
-     * Membangun prompt untuk Gemini AI
+     * Membangun prompt untuk Gemini AI dengan data pencarian Google CSE
      */
-    private function buildPrompt(string $claim): string
+    private function buildPrompt(string $claim, array $searchResults = []): string
     {
-        return "Analisis klaim berikut dan berikan penjelasan yang jelas:
+        $searchData = '';
+        
+        if (!empty($searchResults)) {
+            $searchData = "\n\nHASIL PENCARIAN GOOGLE:\n";
+            foreach ($searchResults as $index => $result) {
+                $searchData .= ($index + 1) . ". " . ($result['title'] ?? 'Tidak ada judul') . "\n";
+                $searchData .= "   URL: " . ($result['link'] ?? 'Tidak ada URL') . "\n";
+                $searchData .= "   Snippet: " . ($result['snippet'] ?? 'Tidak ada snippet') . "\n";
+                $searchData .= "   Domain: " . ($result['displayLink'] ?? 'Tidak ada domain') . "\n\n";
+            }
+        }
 
-KLAIM: \"{$claim}\"
+        return "Analisis klaim berikut dengan menggunakan data pencarian Google yang tersedia dan berikan penjelasan yang objektif:
+
+KLAIM: \"{$claim}\"{$searchData}
+
+TUGAS:
+1. Analisis klaim berdasarkan data pencarian Google di atas
+2. Identifikasi apakah ada informasi yang mendukung atau membantah klaim
+3. Berikan penjelasan yang objektif dan seimbang
+4. Sertakan sumber-sumber yang relevan dari hasil pencarian
 
 Berikan jawaban dalam format JSON:
 {
-  \"explanation\": \"Penjelasan singkat tentang klaim ini\",
-  \"sources\": \"Sumber atau referensi yang mendukung penjelasan\"
+  \"explanation\": \"Penjelasan objektif tentang klaim berdasarkan data pencarian\",
+  \"sources\": \"Sumber-sumber yang relevan dari hasil pencarian Google\",
+  \"analysis\": \"Analisis mendalam tentang klaim berdasarkan data yang tersedia\"
 }
 
-Jawaban harus dalam bahasa Indonesia dan objektif.";
+Jawaban harus dalam bahasa Indonesia, objektif, dan berdasarkan data pencarian yang tersedia.";
     }
 
     /**
@@ -119,6 +138,7 @@ Jawaban harus dalam bahasa Indonesia dan objektif.";
                         'success' => true,
                         'explanation' => $data['explanation'] ?? 'Tidak ada penjelasan tersedia',
                         'sources' => $data['sources'] ?? 'Tidak ada sumber tersedia',
+                        'analysis' => $data['analysis'] ?? 'Tidak ada analisis tersedia',
                         'claim' => $claim,
                     ];
                 }
@@ -142,6 +162,7 @@ Jawaban harus dalam bahasa Indonesia dan objektif.";
             'success' => true,
             'explanation' => 'Tidak dapat menganalisis klaim ini dengan pasti.',
             'sources' => 'Analisis AI Gemini',
+            'analysis' => 'Tidak ada analisis tersedia',
             'claim' => $claim,
         ];
     }
@@ -155,6 +176,7 @@ Jawaban harus dalam bahasa Indonesia dan objektif.";
             'success' => false,
             'explanation' => 'Tidak dapat menganalisis klaim ini saat ini. Silakan coba lagi nanti.',
             'sources' => 'Sistem sedang mengalami gangguan',
+            'analysis' => 'Tidak ada analisis tersedia',
             'claim' => $claim,
             'error' => 'Gemini API tidak tersedia'
         ];

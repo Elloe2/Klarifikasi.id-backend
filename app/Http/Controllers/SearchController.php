@@ -48,8 +48,8 @@ class SearchController extends Controller
             ], 502);
         }
 
-        // Analisis klaim dengan Gemini AI
-        $geminiAnalysis = $this->geminiService->analyzeClaim($validated['query']);
+        // Analisis klaim dengan Gemini AI menggunakan hasil pencarian Google CSE
+        $geminiAnalysis = $this->geminiService->analyzeClaim($validated['query'], $items);
 
         return response()->json([
             'query' => $validated['query'],
