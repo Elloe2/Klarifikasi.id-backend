@@ -12,11 +12,17 @@ use Illuminate\Support\Facades\Log;
 class GeminiService
 {
     private string $apiKey;
-    private string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    private string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
     public function __construct()
     {
         $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY')) ?? 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
+        
+        // Validasi API key
+        if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
+            Log::error('Invalid or missing Gemini API Key');
+            throw new \Exception('Gemini API Key tidak valid atau tidak ditemukan');
+        }
     }
 
     /**
@@ -25,7 +31,14 @@ class GeminiService
     public function analyzeClaim(string $claim, array $searchResults = []): array
     {
         try {
+            // Log API key untuk debugging (hanya sebagian)
+            $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
+            Log::info('Using Gemini API Key: ' . $maskedKey);
+            Log::info('Gemini API URL: ' . $this->baseUrl);
+            
             $prompt = $this->buildPrompt($claim, $searchResults);
+            
+            Log::info('Sending request to Gemini API...');
             
             $response = Http::timeout(30)
                 ->withHeaders([
@@ -66,18 +79,23 @@ class GeminiService
                     ]
                 ]);
 
+            Log::info('Gemini API Response Status: ' . $response->status());
+            
             if ($response->successful()) {
                 $data = $response->json();
                 $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
                 
+                Log::info('Gemini API Success - Response received');
                 return $this->parseResponse($text, $claim);
             } else {
-                Log::error('Gemini API Error: ' . $response->body());
+                Log::error('Gemini API Error Status: ' . $response->status());
+                Log::error('Gemini API Error Body: ' . $response->body());
                 return $this->getFallbackResponse($claim);
             }
 
         } catch (\Exception $e) {
-            Log::error('Gemini Service Error: ' . $e->getMessage());
+            Log::error('Gemini Service Exception: ' . $e->getMessage());
+            Log::error('Gemini Service Exception Trace: ' . $e->getTraceAsString());
             return $this->getFallbackResponse($claim);
         }
     }
