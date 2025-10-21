@@ -99,24 +99,23 @@ class GeminiService
             }
         }
 
-        return "Analisis klaim berikut dengan menggunakan data pencarian Google yang tersedia dan berikan penjelasan yang objektif:
+        return "Analisis klaim berikut dengan menggunakan data pencarian Google yang tersedia:
 
 KLAIM: \"{$claim}\"{$searchData}
 
 TUGAS:
 1. Analisis klaim berdasarkan data pencarian Google di atas
-2. Identifikasi apakah ada informasi yang mendukung atau membantah klaim
-3. Berikan penjelasan yang objektif dan seimbang
-4. Sertakan sumber-sumber yang relevan dari hasil pencarian
+2. Berikan penjelasan objektif tentang klaim
+3. Sertakan sumber-sumber yang relevan dari hasil pencarian
 
-Berikan jawaban dalam format JSON:
+JAWABAN DALAM FORMAT JSON:
 {
-  \"explanation\": \"Penjelasan objektif tentang klaim berdasarkan data pencarian\",
-  \"sources\": \"Sumber-sumber yang relevan dari hasil pencarian Google\",
+  \"explanation\": \"Penjelasan singkat dan objektif tentang klaim\",
+  \"sources\": \"Sumber-sumber yang relevan dari hasil pencarian\",
   \"analysis\": \"Analisis mendalam tentang klaim berdasarkan data yang tersedia\"
 }
 
-Jawaban harus dalam bahasa Indonesia, objektif, dan berdasarkan data pencarian yang tersedia.";
+WAJIB menggunakan format JSON di atas. Jawaban dalam bahasa Indonesia.";
     }
 
     /**
@@ -125,15 +124,21 @@ Jawaban harus dalam bahasa Indonesia, objektif, dan berdasarkan data pencarian y
     private function parseResponse(string $text, string $claim): array
     {
         try {
+            // Log response untuk debugging
+            Log::info('Gemini Raw Response: ' . $text);
+            
             // Coba extract JSON dari response
             $jsonStart = strpos($text, '{');
             $jsonEnd = strrpos($text, '}');
             
             if ($jsonStart !== false && $jsonEnd !== false) {
                 $jsonString = substr($text, $jsonStart, $jsonEnd - $jsonStart + 1);
+                Log::info('Extracted JSON: ' . $jsonString);
+                
                 $data = json_decode($jsonString, true);
                 
                 if ($data && isset($data['explanation'])) {
+                    Log::info('Successfully parsed JSON response');
                     return [
                         'success' => true,
                         'explanation' => $data['explanation'] ?? 'Tidak ada penjelasan tersedia',
@@ -141,10 +146,14 @@ Jawaban harus dalam bahasa Indonesia, objektif, dan berdasarkan data pencarian y
                         'analysis' => $data['analysis'] ?? 'Tidak ada analisis tersedia',
                         'claim' => $claim,
                     ];
+                } else {
+                    Log::warning('JSON parsed but missing explanation field');
                 }
+            } else {
+                Log::warning('No JSON found in response');
             }
             
-            // Fallback jika JSON parsing gagal
+            // Fallback jika JSON parsing gagal - coba parse manual
             return $this->parseTextResponse($text, $claim);
             
         } catch (\Exception $e) {
@@ -158,11 +167,36 @@ Jawaban harus dalam bahasa Indonesia, objektif, dan berdasarkan data pencarian y
      */
     private function parseTextResponse(string $text, string $claim): array
     {
+        // Jika response tidak dalam format JSON, coba extract informasi manual
+        $explanation = 'Tidak dapat menganalisis klaim ini dengan pasti.';
+        $sources = 'Analisis AI Gemini';
+        $analysis = 'Tidak ada analisis tersedia';
+        
+        // Coba extract penjelasan dari response text
+        if (!empty($text)) {
+            // Ambil beberapa kalimat pertama sebagai explanation
+            $sentences = preg_split('/[.!?]+/', $text);
+            $explanation = trim($sentences[0] ?? $text);
+            
+            // Jika explanation terlalu panjang, potong
+            if (strlen($explanation) > 200) {
+                $explanation = substr($explanation, 0, 200) . '...';
+            }
+            
+            // Gunakan seluruh response sebagai analysis
+            $analysis = $text;
+            if (strlen($analysis) > 500) {
+                $analysis = substr($analysis, 0, 500) . '...';
+            }
+            
+            $sources = 'Berdasarkan analisis AI Gemini dan data pencarian Google';
+        }
+        
         return [
             'success' => true,
-            'explanation' => 'Tidak dapat menganalisis klaim ini dengan pasti.',
-            'sources' => 'Analisis AI Gemini',
-            'analysis' => 'Tidak ada analisis tersedia',
+            'explanation' => $explanation,
+            'sources' => $sources,
+            'analysis' => $analysis,
             'claim' => $claim,
         ];
     }
