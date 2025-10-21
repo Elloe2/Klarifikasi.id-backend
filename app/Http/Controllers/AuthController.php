@@ -20,7 +20,7 @@ class AuthController extends Controller
             $validated = $request->validate([
                 'name' => ['required', 'string', 'max:255'],
                 'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-                'password' => ['required', 'confirmed', 'min:8'], // Simplified password validation for development
+                'password' => ['required', 'string', 'min:8'], // Simplified password validation for development
                 'birth_date' => ['nullable', 'date', 'before:today'],
                 'education_level' => ['nullable', 'in:sd,smp,sma,kuliah'],
                 'institution' => ['nullable', 'string', 'max:255'],

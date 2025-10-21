@@ -57,6 +57,11 @@ if (!isset($_ENV['GOOGLE_CSE_CX'])) {
     $_ENV['GOOGLE_CSE_CX'] = '6242f5825dedb4b59';
 }
 
+// Gemini AI API Key
+if (!isset($_ENV['GEMINI_API_KEY'])) {
+    $_ENV['GEMINI_API_KEY'] = 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
+}
+
 // Session configuration untuk serverless
 if (!isset($_ENV['SESSION_DRIVER'])) {
     $_ENV['SESSION_DRIVER'] = 'database';
