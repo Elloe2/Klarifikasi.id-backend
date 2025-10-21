@@ -141,10 +141,10 @@ WAJIB menggunakan format JSON di atas. Jawaban dalam bahasa Indonesia.";
                     Log::info('Successfully parsed JSON response');
                     return [
                         'success' => true,
-                        'explanation' => $data['explanation'] ?? 'Tidak ada penjelasan tersedia',
-                        'sources' => $data['sources'] ?? 'Tidak ada sumber tersedia',
-                        'analysis' => $data['analysis'] ?? 'Tidak ada analisis tersedia',
-                        'claim' => $claim,
+                        'explanation' => (string) ($data['explanation'] ?? 'Tidak ada penjelasan tersedia'),
+                        'sources' => (string) ($data['sources'] ?? 'Tidak ada sumber tersedia'),
+                        'analysis' => (string) ($data['analysis'] ?? 'Tidak ada analisis tersedia'),
+                        'claim' => (string) $claim,
                     ];
                 } else {
                     Log::warning('JSON parsed but missing explanation field');
@@ -192,12 +192,13 @@ WAJIB menggunakan format JSON di atas. Jawaban dalam bahasa Indonesia.";
             $sources = 'Berdasarkan analisis AI Gemini dan data pencarian Google';
         }
         
+        // Pastikan semua field adalah string
         return [
             'success' => true,
-            'explanation' => $explanation,
-            'sources' => $sources,
-            'analysis' => $analysis,
-            'claim' => $claim,
+            'explanation' => (string) $explanation,
+            'sources' => (string) $sources,
+            'analysis' => (string) $analysis,
+            'claim' => (string) $claim,
         ];
     }
 
@@ -211,7 +212,7 @@ WAJIB menggunakan format JSON di atas. Jawaban dalam bahasa Indonesia.";
             'explanation' => 'Tidak dapat menganalisis klaim ini saat ini. Silakan coba lagi nanti.',
             'sources' => 'Sistem sedang mengalami gangguan',
             'analysis' => 'Tidak ada analisis tersedia',
-            'claim' => $claim,
+            'claim' => (string) $claim,
             'error' => 'Gemini API tidak tersedia'
         ];
     }
