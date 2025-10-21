@@ -151,7 +151,6 @@ class GeminiService
 
         $jsonTemplate = json_encode([
             'explanation' => 'Penjelasan singkat dan objektif tentang klaim',
-            'sources' => 'Sumber berasal dari web terpercaya hasil pencarian Google CSE dan analisis Gemini AI',
             'analysis' => 'Analisis mendalam berdasarkan data yang tersedia',
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
@@ -163,7 +162,6 @@ KLAIM: "{$claim}"{$searchData}
 INSTRUKSI:
 - Gunakan hanya informasi dari DATA_PENDUKUNG di atas.
 - Jika data tidak cukup, nyatakan bahwa bukti tidak memadai.
-- Berikan daftar sumber relevan dengan format "judul (url)" dipisahkan titik koma.
 - Jangan tambahkan penjelasan di luar struktur JSON.
 
 FORMAT OUTPUT (JSON valid tanpa markdown):
@@ -198,7 +196,7 @@ PROMPT;
                     return [
                         'success' => true,
                         'explanation' => (string) ($data['explanation'] ?? 'Tidak ada penjelasan tersedia'),
-                        'sources' => (string) ($data['sources'] ?? 'Tidak ada sumber tersedia'),
+                        'sources' => (string) ($data['sources'] ?? ''),
                         'analysis' => (string) ($data['analysis'] ?? 'Tidak ada analisis tersedia'),
                         'claim' => (string) $claim,
                     ];
@@ -244,7 +242,7 @@ PROMPT;
     {
         // Jika response tidak dalam format JSON, coba extract informasi manual
         $explanation = 'Tidak dapat menganalisis klaim ini dengan pasti.';
-        $sources = 'Analisis AI Gemini';
+        $sources = '';
         $analysis = 'Tidak ada analisis tersedia';
         
         // Coba extract penjelasan dari response text
@@ -264,7 +262,7 @@ PROMPT;
                 $analysis = substr($analysis, 0, 500) . '...';
             }
             
-            $sources = 'Berdasarkan analisis AI Gemini dan data pencarian Google';
+            $sources = '';
         }
         
         // Pastikan semua field adalah string
@@ -285,7 +283,7 @@ PROMPT;
         return [
             'success' => false,
             'explanation' => 'Tidak dapat menganalisis klaim ini saat ini. Silakan coba lagi nanti.',
-            'sources' => 'Sistem sedang mengalami gangguan',
+            'sources' => '',
             'analysis' => 'Tidak ada analisis tersedia',
             'claim' => (string) $claim,
             'error' => 'Gemini API tidak tersedia'
@@ -294,12 +292,12 @@ PROMPT;
     private function getFallbackWithSearchData(string $claim, array $searchResults = []): array
     {
         $explanation = 'Tidak dapat menganalisis klaim ini dengan AI saat ini.';
-        $sources = 'Sistem sedang mengalami gangguan';
+        $sources = '';
         $analysis = 'Tidak ada analisis tersedia';
         
         if (!empty($searchResults)) {
             $explanation = 'Berdasarkan hasil pencarian Google, klaim ini memerlukan verifikasi lebih lanjut.';
-            $sources = 'Hasil pencarian Google menunjukkan berbagai sumber yang relevan.';
+            $sources = '';
             
             $analysis = 'Analisis berdasarkan hasil pencarian Google:\n\n';
             foreach (array_slice($searchResults, 0, 3) as $index => $result) {
