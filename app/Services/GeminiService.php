@@ -18,10 +18,13 @@ class GeminiService
     {
         $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY')) ?? 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
         
-        // Validasi API key
+        // Log API key untuk debugging (hanya sebagian)
+        $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
+        Log::info('GeminiService initialized with API Key: ' . $maskedKey);
+        
+        // Validasi API key tanpa throw exception
         if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
-            Log::error('Invalid or missing Gemini API Key');
-            throw new \Exception('Gemini API Key tidak valid atau tidak ditemukan');
+            Log::error('Invalid or missing Gemini API Key: ' . $this->apiKey);
         }
     }
 
@@ -30,20 +33,17 @@ class GeminiService
      */
     public function analyzeClaim(string $claim, array $searchResults = []): array
     {
-        // Temporary: Skip Gemini analysis jika API key tidak valid
+        // Log API key status
+        $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
+        Log::info('GeminiService analyzeClaim called with API Key: ' . $maskedKey);
+        
+        // Check API key validity
         if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
-            Log::warning('Gemini API Key not configured, skipping analysis');
-            return $this->getFallbackResponse($claim);
+            Log::warning('Gemini API Key not configured properly, using fallback');
+            return $this->getFallbackWithSearchData($claim, $searchResults);
         }
         
         try {
-            // Log API key untuk debugging (hanya sebagian)
-            $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
-            Log::info('Using Gemini API Key: ' . $maskedKey);
-            Log::info('Gemini API URL: ' . $this->baseUrl);
-            
-            $prompt = $this->buildPrompt($claim, $searchResults);
-            
             Log::info('Sending request to Gemini API...');
             
             $response = Http::timeout(30)
@@ -55,7 +55,7 @@ class GeminiService
                     'contents' => [
                         [
                             'parts' => [
-                                ['text' => $prompt]
+                                ['text' => $this->buildPrompt($claim, $searchResults)]
                             ]
                         ]
                     ],
