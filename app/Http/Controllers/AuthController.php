@@ -41,7 +41,14 @@ class AuthController extends Controller
             'institution' => $validated['institution'] ?? null,
         ]);
 
-        $token = $user->createToken('api-token')->plainTextToken;
+        try {
+            $token = $user->createToken('api-token')->plainTextToken;
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to create authentication token.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
 
         return response()->json([
             'message' => 'User registered successfully.',
@@ -81,8 +88,23 @@ class AuthController extends Controller
             ], 401);
         }
 
+        /** @var \App\Models\User $user */
         $user = Auth::user();
-        $token = $user->createToken('api-token')->plainTextToken;
+        
+        if (!$user) {
+            return response()->json([
+                'message' => 'User not found after authentication.',
+            ], 500);
+        }
+        
+        try {
+            $token = $user->createToken('api-token')->plainTextToken;
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to create authentication token.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
 
         return response()->json([
             'message' => 'Login successful.',
@@ -104,7 +126,14 @@ class AuthController extends Controller
      */
     public function profile(Request $request): JsonResponse
     {
+        /** @var \App\Models\User|null $user */
         $user = Auth::user();
+        
+        if (!$user) {
+            return response()->json([
+                'message' => 'User not authenticated.',
+            ], 401);
+        }
 
         return response()->json([
             'user' => [
@@ -127,7 +156,14 @@ class AuthController extends Controller
      */
     public function updateProfile(Request $request): JsonResponse
     {
+        /** @var \App\Models\User|null $user */
         $user = Auth::user();
+        
+        if (!$user) {
+            return response()->json([
+                'message' => 'User not authenticated.',
+            ], 401);
+        }
 
         try {
             $validated = $request->validate([
@@ -142,6 +178,12 @@ class AuthController extends Controller
                 'message' => 'Validation failed.',
                 'errors' => $exception->errors(),
             ], 422);
+        }
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'User not authenticated.',
+            ], 401);
         }
 
         $user->update($validated);
