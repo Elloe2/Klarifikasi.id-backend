@@ -108,14 +108,14 @@ TUGAS:
 2. Berikan penjelasan objektif tentang klaim
 3. Sertakan sumber-sumber yang relevan dari hasil pencarian
 
-JAWABAN DALAM FORMAT JSON:
+Berikan jawaban dalam format JSON yang valid:
 {
   \"explanation\": \"Penjelasan singkat dan objektif tentang klaim\",
   \"sources\": \"Sumber-sumber yang relevan dari hasil pencarian\",
   \"analysis\": \"Analisis mendalam tentang klaim berdasarkan data yang tersedia\"
 }
 
-WAJIB menggunakan format JSON di atas. Jawaban dalam bahasa Indonesia.";
+WAJIB menggunakan format JSON di atas tanpa markdown atau formatting tambahan. Jawaban dalam bahasa Indonesia.";
     }
 
     /**
@@ -127,12 +127,15 @@ WAJIB menggunakan format JSON di atas. Jawaban dalam bahasa Indonesia.";
             // Log response untuk debugging
             Log::info('Gemini Raw Response: ' . $text);
             
+            // Bersihkan response dari markdown formatting jika ada
+            $cleanText = $this->cleanResponse($text);
+            
             // Coba extract JSON dari response
-            $jsonStart = strpos($text, '{');
-            $jsonEnd = strrpos($text, '}');
+            $jsonStart = strpos($cleanText, '{');
+            $jsonEnd = strrpos($cleanText, '}');
             
             if ($jsonStart !== false && $jsonEnd !== false) {
-                $jsonString = substr($text, $jsonStart, $jsonEnd - $jsonStart + 1);
+                $jsonString = substr($cleanText, $jsonStart, $jsonEnd - $jsonStart + 1);
                 Log::info('Extracted JSON: ' . $jsonString);
                 
                 $data = json_decode($jsonString, true);
@@ -154,12 +157,31 @@ WAJIB menggunakan format JSON di atas. Jawaban dalam bahasa Indonesia.";
             }
             
             // Fallback jika JSON parsing gagal - coba parse manual
-            return $this->parseTextResponse($text, $claim);
+            return $this->parseTextResponse($cleanText, $claim);
             
         } catch (\Exception $e) {
             Log::error('Error parsing Gemini response: ' . $e->getMessage());
             return $this->getFallbackResponse($claim);
         }
+    }
+
+    /**
+     * Bersihkan response dari markdown dan formatting
+     */
+    private function cleanResponse(string $text): string
+    {
+        // Hapus markdown code blocks
+        $text = preg_replace('/```json\s*/', '', $text);
+        $text = preg_replace('/```\s*/', '', $text);
+        
+        // Hapus markdown formatting
+        $text = preg_replace('/\*\*(.*?)\*\*/', '$1', $text);
+        $text = preg_replace('/\*(.*?)\*/', '$1', $text);
+        
+        // Hapus extra whitespace
+        $text = preg_replace('/\s+/', ' ', $text);
+        
+        return trim($text);
     }
 
     /**
