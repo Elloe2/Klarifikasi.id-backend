@@ -89,10 +89,29 @@ class GeminiService
             
             if ($response->successful()) {
                 $data = $response->json();
-                $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-                
+                $text = data_get($data, 'candidates.0.content.parts.0.text');
+
+                if (!is_string($text) || trim($text) === '') {
+                    $blockReason = data_get($data, 'promptFeedback.blockReason');
+                    $safetyRatings = data_get($data, 'promptFeedback.safetyRatings');
+                    Log::error('Gemini API returned no analysable candidates.', [
+                        'blockReason' => $blockReason,
+                        'safetyRatings' => $safetyRatings,
+                    ]);
+
+                    $fallback = $this->getFallbackWithSearchData($claim, $searchResults);
+                    $message = $blockReason ? 'Analisis diblokir oleh Gemini AI.' : 'Gemini AI tidak mengembalikan analisis.';
+                    $fallback['success'] = false;
+                    $fallback['explanation'] = $message;
+                    $fallback['sources'] = 'Gemini AI';
+                    $fallback['error'] = $blockReason
+                        ? 'Gemini AI memblokir analisis: ' . $blockReason
+                        : 'Gemini AI tidak mengembalikan analisis.';
+                    return $fallback;
+                }
+
                 Log::info('Gemini API Success - Response received');
-                return $this->parseResponse($text, $claim);
+                return $this->parseResponse((string) $text, $claim);
             } else {
                 Log::error('Gemini API Error Status: ' . $response->status());
                 Log::error('Gemini API Error Body: ' . $response->body());
