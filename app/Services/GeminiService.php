@@ -135,32 +135,40 @@ class GeminiService
         $searchData = '';
         
         if (!empty($searchResults)) {
-            $searchData = "\n\nHASIL PENCARIAN GOOGLE:\n";
+            $items = [];
             foreach ($searchResults as $index => $result) {
-                $searchData .= ($index + 1) . ". " . ($result['title'] ?? 'Tidak ada judul') . "\n";
-                $searchData .= "   URL: " . ($result['link'] ?? 'Tidak ada URL') . "\n";
-                $searchData .= "   Snippet: " . ($result['snippet'] ?? 'Tidak ada snippet') . "\n";
-                $searchData .= "   Domain: " . ($result['displayLink'] ?? 'Tidak ada domain') . "\n\n";
+                $items[] = sprintf(
+                    '%d. judul="%s" url="%s" ringkasan="%s" domain="%s"',
+                    $index + 1,
+                    $result['title'] ?? 'Tidak ada judul',
+                    $result['link'] ?? 'Tidak ada URL',
+                    $result['snippet'] ?? 'Tidak ada snippet',
+                    $result['displayLink'] ?? 'Tidak ada domain'
+                );
             }
+            $searchData = "\n\nDATA_PENDUKUNG:\n" . implode("\n", $items);
         }
 
-        return "Analisis klaim berikut dengan menggunakan data pencarian Google yang tersedia:
+        $jsonTemplate = json_encode([
+            'explanation' => 'Penjelasan singkat dan objektif tentang klaim',
+            'sources' => 'Pisahkan setiap sumber dengan titik koma',
+            'analysis' => 'Analisis mendalam berdasarkan data yang tersedia',
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
-KLAIM: \"{$claim}\"{$searchData}
+        return <<<PROMPT
+Anda adalah pakar pemeriksa fakta. Analisis klaim berikut secara objektif dan ringkas dalam bahasa Indonesia.
 
-TUGAS:
-1. Analisis klaim berdasarkan data pencarian Google di atas
-2. Berikan penjelasan objektif tentang klaim
-3. Sertakan sumber-sumber yang relevan dari hasil pencarian
+KLAIM: "{$claim}"{$searchData}
 
-Berikan jawaban dalam format JSON yang valid:
-{
-  \"explanation\": \"Penjelasan singkat dan objektif tentang klaim\",
-  \"sources\": \"Sumber-sumber yang relevan dari hasil pencarian\",
-  \"analysis\": \"Analisis mendalam tentang klaim berdasarkan data yang tersedia\"
-}
+INSTRUKSI:
+- Gunakan hanya informasi dari DATA_PENDUKUNG di atas.
+- Jika data tidak cukup, nyatakan bahwa bukti tidak memadai.
+- Berikan daftar sumber relevan dengan format "judul (url)" dipisahkan titik koma.
+- Jangan tambahkan penjelasan di luar struktur JSON.
 
-WAJIB menggunakan format JSON di atas tanpa markdown atau formatting tambahan. Jawaban dalam bahasa Indonesia.";
+FORMAT OUTPUT (JSON valid tanpa markdown):
+{$jsonTemplate}
+PROMPT;
     }
 
     /**
