@@ -138,8 +138,9 @@ class GeminiService
             $items = [];
             foreach ($searchResults as $index => $result) {
                 $items[] = sprintf(
-                    '%d. judul="%s" url="%s" ringkasan="%s" domain="%s"',
+                    '%d. situs="%s" judul="%s" url="%s" ringkasan="%s" domain="%s"',
                     $index + 1,
+                    $result['displayLink'] ?? 'Tidak ada domain',
                     $result['title'] ?? 'Tidak ada judul',
                     $result['link'] ?? 'Tidak ada URL',
                     $result['snippet'] ?? 'Tidak ada snippet',
@@ -162,6 +163,7 @@ KLAIM: "{$claim}"{$searchData}
 INSTRUKSI:
 - Gunakan hanya informasi dari DATA_PENDUKUNG di atas.
 - Jika data tidak cukup, nyatakan bahwa bukti tidak memadai.
+- Jika menyebutkan sumber, gunakan nama situs/portal (misal kompas.com) bukan nomor indeks dan gabungkan dengan konteksnya.
 - Jangan tambahkan penjelasan di luar struktur JSON.
 
 FORMAT OUTPUT (JSON valid tanpa markdown):
