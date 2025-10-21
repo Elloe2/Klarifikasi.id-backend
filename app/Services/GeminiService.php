@@ -30,6 +30,12 @@ class GeminiService
      */
     public function analyzeClaim(string $claim, array $searchResults = []): array
     {
+        // Temporary: Skip Gemini analysis jika API key tidak valid
+        if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
+            Log::warning('Gemini API Key not configured, skipping analysis');
+            return $this->getFallbackResponse($claim);
+        }
+        
         try {
             // Log API key untuk debugging (hanya sebagian)
             $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
@@ -89,13 +95,15 @@ class GeminiService
             } else {
                 Log::error('Gemini API Error Status: ' . $response->status());
                 Log::error('Gemini API Error Body: ' . $response->body());
-                return $this->getFallbackResponse($claim);
+                
+                // Return fallback dengan informasi dari Google CSE
+                return $this->getFallbackWithSearchData($claim, $searchResults);
             }
 
         } catch (\Exception $e) {
             Log::error('Gemini Service Exception: ' . $e->getMessage());
             Log::error('Gemini Service Exception Trace: ' . $e->getTraceAsString());
-            return $this->getFallbackResponse($claim);
+            return $this->getFallbackWithSearchData($claim, $searchResults);
         }
     }
 
@@ -253,6 +261,33 @@ WAJIB menggunakan format JSON di atas tanpa markdown atau formatting tambahan. J
             'analysis' => 'Tidak ada analisis tersedia',
             'claim' => (string) $claim,
             'error' => 'Gemini API tidak tersedia'
+        ];
+    }
+    private function getFallbackWithSearchData(string $claim, array $searchResults = []): array
+    {
+        $explanation = 'Tidak dapat menganalisis klaim ini dengan AI saat ini.';
+        $sources = 'Sistem sedang mengalami gangguan';
+        $analysis = 'Tidak ada analisis tersedia';
+        
+        if (!empty($searchResults)) {
+            $explanation = 'Berdasarkan hasil pencarian Google, klaim ini memerlukan verifikasi lebih lanjut.';
+            $sources = 'Hasil pencarian Google menunjukkan berbagai sumber yang relevan.';
+            
+            $analysis = 'Analisis berdasarkan hasil pencarian Google:\n\n';
+            foreach (array_slice($searchResults, 0, 3) as $index => $result) {
+                $analysis .= ($index + 1) . '. ' . ($result['title'] ?? 'Tidak ada judul') . '\n';
+                $analysis .= '   URL: ' . ($result['link'] ?? 'Tidak ada URL') . '\n';
+                $analysis .= '   Snippet: ' . substr($result['snippet'] ?? 'Tidak ada snippet', 0, 100) . '...\n\n';
+            }
+            $analysis .= 'Silakan periksa sumber-sumber di atas untuk verifikasi lebih lanjut.';
+        }
+        
+        return [
+            'success' => true,
+            'explanation' => $explanation,
+            'sources' => $sources,
+            'analysis' => $analysis,
+            'claim' => (string) $claim,
         ];
     }
 }
