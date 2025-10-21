@@ -151,7 +151,7 @@ class GeminiService
 
         $jsonTemplate = json_encode([
             'explanation' => 'Penjelasan singkat dan objektif tentang klaim',
-            'sources' => 'Pisahkan setiap sumber dengan titik koma',
+            'sources' => 'Sumber berasal dari web terpercaya hasil pencarian Google CSE dan analisis Gemini AI',
             'analysis' => 'Analisis mendalam berdasarkan data yang tersedia',
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
