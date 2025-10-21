@@ -149,44 +149,116 @@ GOOGLE_CSE_KEY=your_api_key_here
 GOOGLE_CSE_CX=your_cx_id_here
 ```
 
-## 🔑 Environment Configuration
+## 📁 Project Structure
 
-### **Backend (.env)**
-```env
-# Application
-APP_NAME=Klarifikasi.id
-APP_ENV=local
-APP_KEY=base64:your_app_key
-APP_DEBUG=true
-APP_URL=https://klarifikasiid-backend-main-ki47jp.laravel.cloud
+### **⚙️ Backend Architecture (Laravel)**
 
-# Database - Laravel Cloud MySQL
-DB_CONNECTION=mysql
-DB_HOST=laravel-cloud-mysql-host
-DB_PORT=3306
-DB_DATABASE=laravel_cloud_db
-DB_USERNAME=laravel_cloud_user
-DB_PASSWORD=laravel_cloud_password
-
-# Google Custom Search (gunakan ENV di server - jangan commit key)
-GOOGLE_CSE_KEY=your_api_key_here
-GOOGLE_CSE_CX=your_cx_id_here
-GOOGLE_CSE_VERIFY_SSL=true
-
-# Session & Cache
-SESSION_DRIVER=database
-CACHE_DRIVER=file
-QUEUE_CONNECTION=database
+```
+Klarifikasi.id-backend/
+├── 🎯 app/                                 # Application core
+│   ├── 🎮 Http/Controllers/                # API controllers
+│   │   ├── AuthController.php              # User authentication & profile
+│   │   ├── SearchController.php            # Fact-checking & Gemini AI
+│   │   └── Controller.php                  # Base controller
+│   ├── 📊 Models/                          # Eloquent models
+│   │   └── User.php                        # User model dengan Sanctum
+│   ├── 🔧 Services/                        # Business logic services
+│   │   ├── GoogleSearchService.php         # Google CSE integration
+│   │   └── GeminiService.php              # Gemini AI integration
+│   ├── 🛡️ Providers/                      # Service providers
+│   │   └── AppServiceProvider.php          # Service container bindings
+│   └── 🚀 Console/                        # Artisan commands
+├── 🌐 api/                                 # Serverless API endpoints
+│   ├── index.php                           # Root API router
+│   ├── auth.php                            # Authentication endpoints
+│   ├── search.php                          # Search endpoints
+│   ├── _init.php                           # Serverless initialization
+│   └── _env.php                            # Environment configuration
+├── ⚙️ config/                             # Configuration files
+│   ├── app.php                             # Application configuration
+│   ├── auth.php                            # Authentication config
+│   ├── database.php                        # Database configuration
+│   ├── services.php                        # Third-party services
+│   └── cors.php                            # CORS configuration
+├── 🗄️ database/                           # Database management
+│   ├── migrations/                         # Database migrations
+│   │   ├── create_users_table.php          # Users table
+│   │   ├── create_personal_access_tokens_table.php  # Sanctum tokens
+│   │   └── create_cache_table.php          # Cache table
+│   ├── factories/                          # Model factories
+│   │   └── UserFactory.php                 # User factory
+│   └── seeders/                            # Database seeders
+│       ├── DatabaseSeeder.php              # Main seeder
+│       └── UserSeeder.php                  # User seeder
+├── 🛣️ routes/                             # Route definitions
+│   ├── api.php                             # API routes
+│   ├── web.php                             # Web routes
+│   └── console.php                         # Console routes
+├── 🚀 bootstrap/                           # Application bootstrap
+│   ├── app.php                             # Application bootstrap
+│   ├── serverless.php                      # Serverless bootstrap
+│   └── providers.php                       # Service providers
+├── 📦 composer.json                        # PHP dependencies
+├── 📋 README.md                            # Backend documentation
+└── 🔧 artisan                              # Laravel command line tool
 ```
 
-### **Frontend (lib/config.dart)**
-```dart
-String get apiBaseUrl {
-  if (kDebugMode) {
-    return 'http://localhost:8000';
-  }
-  return 'https://your-production-domain.com';
-}
+### **🔗 API Architecture**
+
+```
+Backend API Structure:
+├── 🎮 Controller Layer
+│   ├── AuthController                      # Authentication & user management
+│   │   ├── register()                     # User registration
+│   │   ├── login()                        # User authentication
+│   │   ├── profile()                      # Get user profile
+│   │   ├── updateProfile()                # Update user profile
+│   │   └── logout()                       # User logout
+│   └── SearchController                   # Fact-checking & AI integration
+│       ├── search()                       # Main search endpoint
+│       └── searchByQuery()                # Search by URL parameter
+├── 🔧 Service Layer
+│   ├── GoogleSearchService                 # Google CSE integration
+│   │   ├── search()                       # Web search functionality
+│   │   ├── Result Processing               # Thumbnail & snippet extraction
+│   │   └── Error Handling                 # API error management
+│   └── GeminiService                       # Gemini AI integration
+│       ├── analyzeClaim()                 # AI analysis functionality
+│       ├── buildPrompt()                  # Prompt engineering
+│       ├── parseResponse()                # JSON response parsing
+│       └── getFallbackResponse()           # Error fallback
+├── 🛡️ Middleware Layer
+│   ├── auth:sanctum                       # Token-based authentication
+│   ├── throttle                          # Rate limiting (10 req/min)
+│   └── cors                              # Cross-origin resource sharing
+└── 🛣️ Route Layer
+    ├── Authentication Routes              # /api/auth/*
+    ├── Search Routes                      # /api/search
+    ├── Health Check                       # /api/health
+    └── Test Endpoints                     # /api/test-google-cse
+```
+
+### **🤖 AI Integration Architecture**
+
+```
+AI Services Integration:
+├── 🧠 Google Gemini AI Service
+│   ├── Model: gemini-2.0-flash            # Latest Gemini model
+│   ├── API Endpoint                       # generateContent endpoint
+│   ├── Prompt Engineering                 # Structured fact-checking prompts
+│   ├── Response Parsing                   # JSON extraction & validation
+│   ├── Safety Settings                    # Content filtering
+│   └── Error Handling                     # Fallback responses
+├── 🔍 Google Custom Search Engine
+│   ├── Search API                         # Real-time web search
+│   ├── Result Processing                  # Thumbnail & snippet extraction
+│   ├── Query Optimization                 # Search term refinement
+│   └── Rate Limiting                      # API quota management
+└── 📊 Data Aggregation
+    ├── Parallel Processing                # Simultaneous API calls
+    ├── Response Combination               # Merge search + AI results
+    ├── Error Management                   # Comprehensive error handling
+    └── Performance Optimization           # Caching & optimization
 ```
 
 ## 🔗 API Endpoints
@@ -209,20 +281,6 @@ String get apiBaseUrl {
 
 > Catatan: `POST /api/search` saat ini tidak memerlukan autentikasi (throttle diterapkan). Jika ingin diwajibkan autentikasi, pindahkan route ke grup `auth:sanctum` di `routes/api.php`.
 
-## 📱 Screenshots
-
-<div align="center">
-
-### **Login Screen**
-<img src="https://via.placeholder.com/400x600/1a1a2e/ffffff?text=Login+Screen" alt="Login Screen" width="300"/>
-
-### **Dashboard**
-<img src="https://via.placeholder.com/400x600/16213e/ffffff?text=Dashboard" alt="Dashboard" width="300"/>
-
-### **Search Results**
-<img src="https://via.placeholder.com/400x600/0f3460/ffffff?text=Search+Results" alt="Search Results" width="300"/>
-
-</div>
 
 
 ## 📊 Database Schema
@@ -299,20 +357,6 @@ Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more informa
 - **Indonesian Fact-Checking Community** - Inspiration dan support
 - **Open Source Contributors** - Tools dan libraries yang digunakan
 
-## 📞 Support & Contact
-
-### **Issues & Bugs**
-- GitHub Issues: [Report Bug](https://github.com/Elloe2/Klarifikasi.id/issues)
-- Feature Requests: [Request Feature](https://github.com/Elloe2/Klarifikasi.id/issues)
-
-### **Documentation**
-- **API Documentation**: Available in `/docs` folder
-- **Deployment Guide**: See deployment section above
-- **Development Guide**: Contributing guidelines above
-
-### **Community**
-- **Discussions**: GitHub Discussions untuk Q&A
-- **Email**: Contact maintainer untuk partnerships
 
 ---
 
