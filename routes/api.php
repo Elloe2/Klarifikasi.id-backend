@@ -110,6 +110,22 @@ Route::get('/test-gemini-request', function () {
     }
 });
 
+// Test endpoint untuk debug
+Route::get('/test-search', function () {
+    try {
+        return response()->json([
+            'status' => 'ok',
+            'message' => 'Search endpoint accessible',
+            'timestamp' => now(),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
+
 // Route pencarian dengan autentikasi opsional
 Route::post('/search', [SearchController::class, 'search'])
     ->middleware('throttle:10,1');
