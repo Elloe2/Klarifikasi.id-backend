@@ -277,6 +277,9 @@ PROMPT;
             }
         }
 
+        $data = $this->mergeEmbeddedData($data, $data['summary']);
+        $data = $this->mergeEmbeddedData($data, $data['analysis']);
+
         $rawSources = $data['sources_breakdown'] ?? [];
         if (!is_array($rawSources)) {
             $rawSources = [];
@@ -299,6 +302,64 @@ PROMPT;
         $data['sources_breakdown'] = $formattedSources;
 
         return $data;
+    }
+
+    private function mergeEmbeddedData(array $data, string $value): array
+    {
+        $embedded = $this->extractEmbeddedStructuredData($value);
+        if (!$embedded) {
+            return $data;
+        }
+
+        if (!empty($embedded['summary']) && $data['summary'] === '') {
+            $data['summary'] = $this->stringifyValue($embedded['summary']);
+        }
+
+        if (!empty($embedded['analysis'])) {
+            $data['analysis'] = $this->stringifyValue($embedded['analysis']);
+        }
+
+        if (!empty($embedded['verdict_explanation']) && $data['verdict_explanation'] === '') {
+            $data['verdict_explanation'] = $this->stringifyValue($embedded['verdict_explanation']);
+        }
+
+        if (!empty($embedded['sources_breakdown']) && empty($data['sources_breakdown'])) {
+            $data['sources_breakdown'] = $embedded['sources_breakdown'];
+        }
+
+        return $data;
+    }
+
+    private function extractEmbeddedStructuredData(string $value): ?array
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $match = $this->findJsonSubstring($trimmed);
+        if ($match === null) {
+            return null;
+        }
+
+        $decoded = json_decode($match, true);
+        if (!is_array($decoded)) {
+            $decoded = json_decode(stripcslashes($match), true);
+        }
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private function findJsonSubstring(string $text): ?string
+    {
+        $start = strpos($text, '{');
+        $end = strrpos($text, '}');
+
+        if ($start === false || $end === false || $end <= $start) {
+            return null;
+        }
+
+        return substr($text, $start, $end - $start + 1);
     }
 
     private function stringifyValue(mixed $value): string
