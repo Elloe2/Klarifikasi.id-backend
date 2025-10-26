@@ -129,6 +129,7 @@ class GeminiService
 
     /**
      * Membangun prompt untuk Gemini AI dengan data pencarian Google CSE
+     * Enhanced version dengan source analysis dan accuracy scoring
      */
     private function buildPrompt(string $claim, array $searchResults = []): string
     {
@@ -138,41 +139,79 @@ class GeminiService
             $items = [];
             foreach ($searchResults as $index => $result) {
                 $items[] = sprintf(
-                    '%d. situs="%s" judul="%s" url="%s" ringkasan="%s" domain="%s"',
+                    '%d. situs="%s" judul="%s" url="%s" ringkasan="%s"',
                     $index + 1,
                     $result['displayLink'] ?? 'Tidak ada domain',
                     $result['title'] ?? 'Tidak ada judul',
                     $result['link'] ?? 'Tidak ada URL',
-                    $result['snippet'] ?? 'Tidak ada snippet',
-                    $result['displayLink'] ?? 'Tidak ada domain'
+                    $result['snippet'] ?? 'Tidak ada snippet'
                 );
             }
             $searchData = "\n\nDATA_PENDUKUNG:\n" . implode("\n", $items);
         }
 
         $jsonTemplate = json_encode([
-            'explanation' => 'Penjelasan singkat dan objektif tentang klaim',
-            'analysis' => 'Analisis mendalam berdasarkan data yang tersedia',
+            'explanation' => 'Ringkasan singkat tentang klaim',
+            'detailed_analysis' => 'Analisis mendalam berdasarkan data',
+            'source_analysis' => [
+                [
+                    'index' => 1,
+                    'stance' => 'SUPPORT|OPPOSE|NEUTRAL',
+                    'reasoning' => 'Penjelasan singkat mengapa sumber ini mendukung/menolak/netral',
+                    'quote' => 'Kutipan relevan dari sumber (jika ada)'
+                ]
+            ],
+            'statistics' => [
+                'total_sources' => count($searchResults),
+                'support_count' => 0,
+                'oppose_count' => 0,
+                'neutral_count' => 0
+            ],
+            'accuracy_score' => [
+                'verdict' => 'FAKTA|RAGU-RAGU|HOAX',
+                'confidence' => 0,
+                'reasoning' => 'Penjelasan mengapa diberikan verdict ini',
+                'recommendation' => 'Rekomendasi untuk user'
+            ]
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
         return <<<PROMPT
-Anda adalah pakar pemeriksa fakta. Analisis klaim berikut secara objektif dan ringkas dalam bahasa Indonesia.
+Anda adalah pakar pemeriksa fakta profesional. Analisis klaim berikut secara mendalam dan objektif dalam bahasa Indonesia.
 
 KLAIM: "{$claim}"{$searchData}
 
-INSTRUKSI:
-- Gunakan hanya informasi dari DATA_PENDUKUNG di atas.
-- Jika data tidak cukup, nyatakan bahwa bukti tidak memadai.
-- Jika menyebutkan sumber, gunakan nama situs/portal (misal kompas.com) bukan nomor indeks dan gabungkan dengan konteksnya.
-- Jangan tambahkan penjelasan di luar struktur JSON.
+INSTRUKSI ANALISIS:
+
+1. ANALISIS SETIAP SUMBER:
+   Untuk setiap sumber, tentukan sikapnya terhadap klaim:
+   - SUPPORT: Sumber memberikan bukti kuat yang memverifikasi klaim
+   - OPPOSE: Sumber memberikan bukti yang bertentangan atau menolak klaim
+   - NEUTRAL: Sumber membahas topik terkait tapi tidak eksplisit mendukung/menolak
+
+2. KUANTIFIKASI DUKUNGAN:
+   Hitung jumlah sumber per kategori dan berikan persentase
+
+3. PENILAIAN AKURASI:
+   - FAKTA: ≥70% Mendukung, <20% Menyangkal, Confidence ≥80%
+   - RAGU-RAGU: 40%-60% Mendukung, atau >50% Netral, Confidence 50%-79%
+   - HOAX: <30% Mendukung, ≥50% Menyangkal, Confidence <50%
+
+4. CONFIDENCE SCORE: 0-100 berdasarkan konsistensi dan kualitas sumber
 
 FORMAT OUTPUT (JSON valid tanpa markdown):
 {$jsonTemplate}
+
+PENTING:
+- Gunakan hanya informasi dari DATA_PENDUKUNG
+- Berikan kutipan spesifik untuk setiap sumber
+- Jangan tambahkan penjelasan di luar JSON
+- Pastikan semua field terisi dengan data yang valid
 PROMPT;
     }
 
     /**
      * Parse response dari Gemini AI
+     * Enhanced version dengan source analysis dan accuracy scoring
      */
     private function parseResponse(string $text, string $claim): array
     {
@@ -195,13 +234,31 @@ PROMPT;
                 
                 if ($data && isset($data['explanation'])) {
                     Log::info('Successfully parsed JSON response');
-                    return [
+                    
+                    // Enhanced response dengan source analysis
+                    $response = [
                         'success' => true,
                         'explanation' => (string) ($data['explanation'] ?? 'Tidak ada penjelasan tersedia'),
-                        'sources' => (string) ($data['sources'] ?? ''),
-                        'analysis' => (string) ($data['analysis'] ?? 'Tidak ada analisis tersedia'),
+                        'detailed_analysis' => (string) ($data['detailed_analysis'] ?? $data['analysis'] ?? 'Tidak ada analisis tersedia'),
                         'claim' => (string) $claim,
                     ];
+                    
+                    // Add source analysis jika tersedia
+                    if (!empty($data['source_analysis']) && is_array($data['source_analysis'])) {
+                        $response['source_analysis'] = $data['source_analysis'];
+                    }
+                    
+                    // Add statistics jika tersedia
+                    if (!empty($data['statistics']) && is_array($data['statistics'])) {
+                        $response['statistics'] = $data['statistics'];
+                    }
+                    
+                    // Add accuracy score jika tersedia
+                    if (!empty($data['accuracy_score']) && is_array($data['accuracy_score'])) {
+                        $response['accuracy_score'] = $data['accuracy_score'];
+                    }
+                    
+                    return $response;
                 } else {
                     Log::warning('JSON parsed but missing explanation field');
                 }
