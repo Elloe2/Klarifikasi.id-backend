@@ -64,8 +64,8 @@ class GeminiService
                         'topK' => 1,
                         'topP' => 1,
                         'maxOutputTokens' => 1024,
-                        'response_mime_type' => 'application/json',
-                        'response_schema' => [
+                        'responseMimeType' => 'application/json',
+                        'responseSchema' => [
                             'type' => 'object',
                             'additionalProperties' => false,
                             'properties' => [
