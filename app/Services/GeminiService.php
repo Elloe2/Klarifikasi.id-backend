@@ -214,6 +214,7 @@ PROMPT;
                 } else {
                     Log::warning('Failed to decode Gemini JSON', [
                         'error' => json_last_error_msg(),
+                        'snippet' => substr($sanitizedJson, 0, 300),
                     ]);
                 }
             } else {
@@ -221,6 +222,9 @@ PROMPT;
             }
 
             // Fallback jika JSON parsing gagal - coba parse manual
+            Log::debug('Falling back to text parsing', [
+                'raw_snippet' => substr($cleanText, 0, 300),
+            ]);
             return $this->parseTextResponse($cleanText, $claim, $searchResults);
 
         } catch (\Exception $e) {
@@ -353,6 +357,31 @@ PROMPT;
         }
 
         $aggregates = $this->calculateSourceAggregates($sourceBreakdown);
+
+        if ($aggregates['verdict_label'] === 'RAGU-RAGU' && $aggregates['supporting'] === 0) {
+            $negativeIndicators = [
+                'tidak didukung',
+                'tidak benar',
+                'tidak ada bukti',
+                'hoax',
+                'klaim palsu',
+                'tidak terbukti',
+            ];
+
+            $summaryLower = mb_strtolower($summary, 'UTF-8');
+            $analysisLower = mb_strtolower($analysis, 'UTF-8');
+
+            foreach ($negativeIndicators as $indicator) {
+                if (str_contains($summaryLower, $indicator) || str_contains($analysisLower, $indicator)) {
+                    $aggregates['verdict_label'] = 'HOAX';
+                    $aggregates['verdict_score'] = 0.0;
+                    if ($verdictExplanation === '') {
+                        $verdictExplanation = 'Gemini menyatakan klaim ini tidak didukung bukti sehingga diklasifikasikan sebagai hoax.';
+                    }
+                    break;
+                }
+            }
+        }
 
         if ($verdictExplanation === '') {
             $verdictExplanation = $this->buildVerdictExplanation($aggregates, $sourceBreakdown, $summary);
