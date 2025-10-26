@@ -45,4 +45,10 @@ return [
         'api_key' => env('GEMINI_API_KEY'),
     ],
 
+    'deepseek' => [
+        'api_key' => env('CHUTES_API_TOKEN'),
+        'base_url' => env('CHUTES_BASE_URL', 'https://llm.chutes.ai/v1/chat/completions'),
+        'model' => env('DEEPSEEK_MODEL', 'deepseek-ai/DeepSeek-R1'),
+    ],
+
 ];
