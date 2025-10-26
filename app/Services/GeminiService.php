@@ -157,7 +157,7 @@ class GeminiService
             'sources_breakdown' => [
                 [
                     'source_reference' => 'Nama domain atau judul sumber',
-                    'stance' => 'SUPPORT|OPPOSE|NEUTRAL',
+                    'stance' => 'SUPPORT|NOT_SUPPORT',
                     'reasoning' => 'Ringkasan alasan dari sumber terkait klaim',
                     'quote' => 'Cuplikan ringkas bila tersedia',
                 ],
@@ -174,8 +174,8 @@ INSTRUKSI KETAT:
 - Output HARUS berupa satu objek JSON dengan kunci persis: "summary", "analysis", "verdict_explanation", "sources_breakdown".
 - Nilai "summary", "analysis", dan "verdict_explanation" wajib berupa string tunggal, bukan objek atau daftar.
 - "sources_breakdown" adalah array berisi objek dengan kunci: "source_reference", "stance", "reasoning", "quote" (boleh null bila tidak ada kutipan).
-- Nilai "stance" hanya boleh salah satu dari: "SUPPORT", "OPPOSE", "NEUTRAL". Jika bukti tidak cukup, gunakan "NEUTRAL" dan jelaskan kekurangan bukti.
-- Jika semua sumber netral, tetap berikan reasoning yang menjelaskan mengapa bukti tidak mendukung klaim.
+- Nilai "stance" hanya boleh "SUPPORT" (sumber mendukung klaim) atau "NOT_SUPPORT" (sumber menolak, membantah, atau tidak relevan dengan klaim). Jangan gunakan label lain.
+- Jika informasi tidak cukup untuk mendukung klaim, tandai sebagai "NOT_SUPPORT" dan jelaskan kekurangan buktinya.
 - Jangan menambahkan kunci lain, komentar, markdown, atau teks di luar JSON. Jangan gunakan pembungkus ```.
 - Gunakan karakter escape \" untuk tanda kutip ganda di dalam nilai string.
 
@@ -212,6 +212,7 @@ PROMPT;
                 $data = json_decode($sanitizedJson, true);
                 
                 if ($data) {
+                    $data = $this->coerceStructuredResponse($data);
                     Log::debug('Successfully parsed JSON response');
                     return $this->normalizeAnalysisData($data, $claim, $searchResults);
                 } else {
@@ -258,12 +259,89 @@ PROMPT;
     private function sanitizeJsonString(string $json): string
     {
         // Hapus tanda kutip ganda dalam key seperti ""summary"" menjadi "summary"
-        $json = preg_replace('/""([^"]+)""\s*:/', '"$1":', $json);
+        $json = preg_replace('/""([^""]+)""\s*:/', '"$1":', $json);
 
         // Hapus space sebelum titik dua pada key
-        $json = preg_replace('/"([^"]+)"\s+:/', '"$1":', $json);
+        $json = preg_replace('/"([^""]+)"\s+:/', '"$1":', $json);
 
         return trim($json);
+    }
+
+    private function coerceStructuredResponse(array $data): array
+    {
+        foreach (['summary', 'analysis', 'verdict_explanation'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $data[$field] = $this->stringifyValue($data[$field]);
+            } else {
+                $data[$field] = '';
+            }
+        }
+
+        $rawSources = $data['sources_breakdown'] ?? [];
+        if (!is_array($rawSources)) {
+            $rawSources = [];
+        }
+
+        $formattedSources = [];
+        foreach ($rawSources as $entry) {
+            if (!is_array($entry)) {
+                $entry = ['source_reference' => $this->stringifyValue($entry)];
+            }
+
+            $formattedSources[] = [
+                'source_reference' => $this->stringifyValue($entry['source_reference'] ?? ''),
+                'stance' => strtoupper($this->stringifyValue($entry['stance'] ?? 'NEUTRAL')),
+                'reasoning' => $this->stringifyValue($entry['reasoning'] ?? ''),
+                'quote' => $this->nullableStringify($entry['quote'] ?? null),
+            ];
+        }
+
+        $data['sources_breakdown'] = $formattedSources;
+
+        return $data;
+    }
+
+    private function stringifyValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_string($value)) {
+            return trim($value);
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if (is_numeric($value)) {
+            return (string) $value;
+        }
+
+        if (is_array($value)) {
+            $parts = [];
+            foreach ($value as $item) {
+                $part = $this->stringifyValue($item);
+                if ($part !== '') {
+                    $parts[] = $part;
+                }
+            }
+
+            return implode('. ', $parts);
+        }
+
+        if (is_object($value)) {
+            return $this->stringifyValue((array) $value);
+        }
+
+        return trim((string) $value);
+    }
+
+    private function nullableStringify(mixed $value): ?string
+    {
+        $string = $this->stringifyValue($value);
+        return $string === '' ? null : $string;
     }
 
     /**
@@ -356,7 +434,7 @@ PROMPT;
         $sourceBreakdown = $this->formatSourceBreakdown($rawSources);
 
         if (empty($sourceBreakdown) && !empty($searchResults)) {
-            $sourceBreakdown = $this->buildNeutralBreakdownFromSearch($searchResults);
+            $sourceBreakdown = $this->buildNonSupportingBreakdownFromSearch($searchResults);
         }
 
         $aggregates = $this->calculateSourceAggregates($sourceBreakdown);
@@ -403,8 +481,7 @@ PROMPT;
                 'score' => $aggregates['verdict_score'],
                 'reason' => $verdictExplanation,
                 'supporting_sources' => $aggregates['supporting'],
-                'opposing_sources' => $aggregates['opposing'],
-                'neutral_sources' => $aggregates['neutral'],
+                'non_supporting_sources' => $aggregates['non_supporting'],
                 'total_sources' => $aggregates['total'],
             ],
             'source_breakdown' => $sourceBreakdown,
@@ -427,7 +504,7 @@ PROMPT;
             $formatted[] = [
                 'index' => $index + 1,
                 'source_reference' => (string) ($item['source_reference'] ?? ''),
-                'stance' => strtoupper((string) ($item['stance'] ?? 'NEUTRAL')),
+                'stance' => $this->normalizeStance($item['stance'] ?? null),
                 'reasoning' => (string) ($item['reasoning'] ?? 'Tidak ada penjelasan tersedia'),
                 'quote' => isset($item['quote']) ? (string) $item['quote'] : null,
             ];
@@ -436,7 +513,7 @@ PROMPT;
         return $formatted;
     }
 
-    private function buildNeutralBreakdownFromSearch(array $searchResults): array
+    private function buildNonSupportingBreakdownFromSearch(array $searchResults): array
     {
         if (empty($searchResults)) {
             return [];
@@ -447,8 +524,8 @@ PROMPT;
             $breakdown[] = [
                 'index' => $index + 1,
                 'source_reference' => (string) ($result['displayLink'] ?? $result['title'] ?? 'Sumber'),
-                'stance' => 'NEUTRAL',
-                'reasoning' => 'Tidak ada analisis AI pada sumber ini. Lakukan verifikasi manual.',
+                'stance' => 'NOT_SUPPORT',
+                'reasoning' => 'Tidak ada analisis AI pada sumber ini atau informasinya tidak mendukung klaim. Lakukan verifikasi manual.',
                 'quote' => isset($result['snippet']) ? substr((string) $result['snippet'], 0, 180) : null,
             ];
         }
@@ -456,31 +533,34 @@ PROMPT;
         return $breakdown;
     }
 
+    private function normalizeStance(mixed $value): string
+    {
+        $stance = strtoupper($this->stringifyValue($value));
+
+        return $stance === 'SUPPORT' ? 'SUPPORT' : 'NOT_SUPPORT';
+    }
+
     private function calculateSourceAggregates(array $sourceBreakdown): array
     {
         $supporting = 0;
-        $opposing = 0;
-        $neutral = 0;
+        $nonSupporting = 0;
 
         foreach ($sourceBreakdown as $source) {
-            $stance = $source['stance'] ?? 'NEUTRAL';
+            $stance = $source['stance'] ?? 'NOT_SUPPORT';
             if ($stance === 'SUPPORT') {
                 $supporting++;
-            } elseif ($stance === 'OPPOSE' || $stance === 'OPPOSING') {
-                $opposing++;
             } else {
-                $neutral++;
+                $nonSupporting++;
             }
         }
 
-        $total = $supporting + $opposing + $neutral;
+        $total = $supporting + $nonSupporting;
         $supportRatio = $total > 0 ? $supporting / $total : 0.0;
-        $opposeRatio = $total > 0 ? $opposing / $total : 0.0;
 
         $verdictLabel = 'RAGU-RAGU';
-        if ($supportRatio >= 0.6 && $supporting >= $opposing + 1) {
+        if ($supportRatio >= 0.65 && $supporting >= max(1, $nonSupporting - 1)) {
             $verdictLabel = 'FAKTA';
-        } elseif ($opposeRatio >= 0.5 && $opposing >= $supporting + 1) {
+        } elseif ($supportRatio <= 0.35 && $nonSupporting >= $supporting + 1) {
             $verdictLabel = 'HOAX';
         }
 
@@ -488,8 +568,7 @@ PROMPT;
 
         return [
             'supporting' => $supporting,
-            'opposing' => $opposing,
-            'neutral' => $neutral,
+            'non_supporting' => $nonSupporting,
             'total' => $total,
             'verdict_label' => $verdictLabel,
             'verdict_score' => $verdictScore,
@@ -499,20 +578,19 @@ PROMPT;
     private function buildVerdictExplanation(array $aggregates, array $sourceBreakdown, string $summary): string
     {
         $supporting = $aggregates['supporting'];
-        $opposing = $aggregates['opposing'];
-        $neutral = $aggregates['neutral'];
+        $nonSupporting = $aggregates['non_supporting'];
 
         if ($aggregates['total'] === 0) {
             return 'Tidak ada sumber yang dapat dianalisis untuk menentukan verdict.';
         }
 
         $parts = [];
-        $parts[] = sprintf('Mendukung: %d sumber, Menentang: %d, Netral: %d.', $supporting, $opposing, $neutral);
+        $parts[] = sprintf('Mendukung: %d sumber, Tidak mendukung/tidak relevan: %d.', $supporting, $nonSupporting);
 
         if ($aggregates['verdict_label'] === 'FAKTA') {
             $parts[] = 'Mayoritas sumber mendukung klaim sehingga diklasifikasikan sebagai fakta.';
         } elseif ($aggregates['verdict_label'] === 'HOAX') {
-            $parts[] = 'Mayoritas sumber menentang klaim sehingga diklasifikasikan sebagai hoax.';
+            $parts[] = 'Mayoritas sumber tidak mendukung klaim sehingga diklasifikasikan sebagai hoax.';
         } else {
             $parts[] = 'Distribusi sumber tidak cukup jelas, sehingga dianggap ambigu.';
         }
