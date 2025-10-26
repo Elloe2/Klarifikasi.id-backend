@@ -14,11 +14,6 @@ class GoogleSearchService
      */
     public function search(string $query): array
     {
-        // TEMPORARY: Mock data untuk local testing karena quota habis
-        if (app()->environment('local') || config('app.debug')) {
-            return $this->getMockResults($query);
-        }
-
         $key = config('services.google_cse.key');
         $cx = config('services.google_cse.cx');
 
@@ -64,38 +59,5 @@ class GoogleSearchService
                 'thumbnail' => $thumbnail,
             ];
         })->values()->all();
-    }
-
-    /**
-     * Mock results untuk local testing
-     */
-    private function getMockResults(string $query): array
-    {
-        return [
-            [
-                'title' => 'Contoh Berita 1 - ' . $query,
-                'snippet' => 'Ini adalah contoh snippet berita untuk testing lokal. Berita ini membahas tentang ' . $query . ' dengan detail lengkap.',
-                'link' => 'https://example.com/berita-1',
-                'displayLink' => 'example.com',
-                'formattedUrl' => 'https://example.com/berita-1',
-                'thumbnail' => null,
-            ],
-            [
-                'title' => 'Artikel Terkait ' . $query . ' - Portal Berita',
-                'snippet' => 'Portal berita terpercaya memberikan informasi terkini tentang ' . $query . '. Simak selengkapnya di artikel ini.',
-                'link' => 'https://news.example.com/artikel-2',
-                'displayLink' => 'news.example.com',
-                'formattedUrl' => 'https://news.example.com/artikel-2',
-                'thumbnail' => null,
-            ],
-            [
-                'title' => 'Fakta dan Mitos: ' . $query,
-                'snippet' => 'Artikel ini membahas fakta dan mitos seputar ' . $query . ' berdasarkan sumber terpercaya.',
-                'link' => 'https://factcheck.example.com/fakta',
-                'displayLink' => 'factcheck.example.com',
-                'formattedUrl' => 'https://factcheck.example.com/fakta',
-                'thumbnail' => null,
-            ],
-        ];
     }
 }
