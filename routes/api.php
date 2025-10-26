@@ -52,6 +52,49 @@ Route::get('/test-gemini', function () {
     }
 });
 
+// Test Gemini API dengan simple request
+Route::post('/test-gemini-request', function () {
+    try {
+        $apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY'));
+        $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+        
+        if (empty($apiKey)) {
+            return response()->json(['error' => 'API Key not configured'], 400);
+        }
+        
+        $response = \Illuminate\Support\Facades\Http::timeout(30)
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+                'X-goog-api-key' => $apiKey,
+            ])
+            ->post($baseUrl, [
+                'contents' => [
+                    [
+                        'parts' => [
+                            ['text' => 'Halo, siapa nama Anda?']
+                        ]
+                    ]
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.1,
+                    'maxOutputTokens' => 100,
+                ],
+            ]);
+        
+        return response()->json([
+            'status' => $response->status(),
+            'successful' => $response->successful(),
+            'body' => $response->json(),
+            'raw_body' => substr($response->body(), 0, 500),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
+
 // Route pencarian dengan autentikasi opsional
 Route::post('/search', [SearchController::class, 'search'])
     ->middleware('throttle:10,1');

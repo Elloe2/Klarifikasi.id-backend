@@ -121,6 +121,12 @@ class GeminiService
                 Log::error('Gemini API Error Status: ' . $response->status());
                 Log::error('Gemini API Error Body: ' . $response->body());
                 
+                // Log detailed error info
+                $errorBody = $response->json();
+                if (isset($errorBody['error'])) {
+                    Log::error('Gemini API Error Details: ' . json_encode($errorBody['error']));
+                }
+                
                 // Return fallback dengan informasi dari Google CSE
                 return $this->getFallbackWithSearchData($claim, $searchResults);
             }
