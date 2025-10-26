@@ -11,23 +11,20 @@ use Illuminate\Support\Facades\Log;
  */
 class GeminiService
 {
-    private string $apiToken;
-    private string $baseUrl;
-    private string $model;
+    private string $apiKey;
+    private string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
     public function __construct()
     {
-        $config = config('services.chutes', []);
-
-        $this->apiToken = (string) ($config['api_token'] ?? env('CHUTES_API_TOKEN'));
-        $this->baseUrl = (string) ($config['base_url'] ?? 'https://llm.chutes.ai/v1/chat/completions');
-        $this->model = (string) ($config['model'] ?? 'openai/gpt-oss-120b');
-
-        $maskedToken = substr($this->apiToken, 0, 10) . '...' . substr($this->apiToken, -4);
-        Log::info('GeminiService initialized with Chutes AI token: ' . $maskedToken);
-
-        if (empty($this->apiToken) || strlen($this->apiToken) < 20) {
-            Log::error('Invalid or missing Chutes AI token configuration.');
+        $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY')) ?? 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
+        
+        // Log API key untuk debugging (hanya sebagian)
+        $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
+        Log::info('GeminiService initialized with API Key: ' . $maskedKey);
+        
+        // Validasi API key tanpa throw exception
+        if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
+            Log::error('Invalid or missing Gemini API Key: ' . $this->apiKey);
         }
     }
 
@@ -36,78 +33,102 @@ class GeminiService
      */
     public function analyzeClaim(string $claim, array $searchResults = []): array
     {
-        $maskedToken = substr($this->apiToken, 0, 10) . '...' . substr($this->apiToken, -4);
-        Log::info('GeminiService analyzeClaim called with Chutes AI token: ' . $maskedToken);
-
-        if (empty($this->apiToken) || strlen($this->apiToken) < 20) {
-            Log::warning('Chutes AI token not configured properly, using fallback');
+        // Log API key status
+        $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
+        Log::info('GeminiService analyzeClaim called with API Key: ' . $maskedKey);
+        
+        // Check API key validity
+        if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
+            Log::warning('Gemini API Key not configured properly, using fallback');
             return $this->getFallbackWithSearchData($claim, $searchResults);
         }
-
+        
         try {
-            Log::info('Sending request to Chutes AI API...');
-
+            Log::info('Sending request to Gemini API...');
+            
             $response = Http::timeout(30)
                 ->withHeaders([
                     'Content-Type' => 'application/json',
-                    'Authorization' => 'Bearer ' . $this->apiToken,
+                    'X-goog-api-key' => $this->apiKey,
                 ])
                 ->post($this->baseUrl, [
-                    'model' => $this->model,
-                    'messages' => [
+                    'contents' => [
                         [
-                            'role' => 'system',
-                            'content' => 'Anda adalah pakar pemeriksa fakta yang menjawab dalam bahasa Indonesia.'
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => $this->buildPrompt($claim, $searchResults),
-                        ],
+                            'parts' => [
+                                ['text' => $this->buildPrompt($claim, $searchResults)]
+                            ]
+                        ]
                     ],
-                    'stream' => false,
-                    'max_tokens' => 1024,
-                    'temperature' => 0.3,
+                    'generationConfig' => [
+                        'temperature' => 0.1,
+                        'topK' => 1,
+                        'topP' => 1,
+                        'maxOutputTokens' => 1024,
+                    ],
+                    'safetySettings' => [
+                        [
+                            'category' => 'HARM_CATEGORY_HARASSMENT',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_HATE_SPEECH',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ]
+                    ]
                 ]);
 
-            Log::info('Chutes AI API Response Status: ' . $response->status());
-
+            Log::info('Gemini API Response Status: ' . $response->status());
+            
             if ($response->successful()) {
                 $data = $response->json();
-                $text = data_get($data, 'choices.0.message.content');
+                $text = data_get($data, 'candidates.0.content.parts.0.text');
 
                 if (!is_string($text) || trim($text) === '') {
-                    Log::error('Chutes AI API returned no analysable response.', [
-                        'response' => $data,
+                    $blockReason = data_get($data, 'promptFeedback.blockReason');
+                    $safetyRatings = data_get($data, 'promptFeedback.safetyRatings');
+                    Log::error('Gemini API returned no analysable candidates.', [
+                        'blockReason' => $blockReason,
+                        'safetyRatings' => $safetyRatings,
                     ]);
 
                     $fallback = $this->getFallbackWithSearchData($claim, $searchResults);
-                    $message = 'Chutes AI tidak mengembalikan analisis.';
+                    $message = $blockReason ? 'Analisis diblokir oleh Gemini AI.' : 'Gemini AI tidak mengembalikan analisis.';
                     $fallback['success'] = false;
                     $fallback['explanation'] = $message;
-                    $fallback['sources'] = 'Chutes AI';
-                    $fallback['error'] = 'Chutes AI tidak mengembalikan analisis.';
+                    $fallback['sources'] = 'Gemini AI';
+                    $fallback['error'] = $blockReason
+                        ? 'Gemini AI memblokir analisis: ' . $blockReason
+                        : 'Gemini AI tidak mengembalikan analisis.';
                     return $fallback;
                 }
 
-                Log::info('Chutes AI API Success - Response received');
+                Log::info('Gemini API Success - Response received');
                 return $this->parseResponse((string) $text, $claim);
             } else {
-                Log::error('Chutes AI API Error Status: ' . $response->status());
-                Log::error('Chutes AI API Error Body: ' . $response->body());
-
+                Log::error('Gemini API Error Status: ' . $response->status());
+                Log::error('Gemini API Error Body: ' . $response->body());
+                
                 // Return fallback dengan informasi dari Google CSE
                 return $this->getFallbackWithSearchData($claim, $searchResults);
             }
 
         } catch (\Exception $e) {
-            Log::error('Chutes AI Service Exception: ' . $e->getMessage());
-            Log::error('Chutes AI Service Exception Trace: ' . $e->getTraceAsString());
+            Log::error('Gemini Service Exception: ' . $e->getMessage());
+            Log::error('Gemini Service Exception Trace: ' . $e->getTraceAsString());
             return $this->getFallbackWithSearchData($claim, $searchResults);
         }
     }
 
     /**
-     * Membangun prompt untuk Chutes AI dengan data pencarian Google CSE
+     * Membangun prompt untuk Gemini AI dengan data pencarian Google CSE
      */
     private function buildPrompt(string $claim, array $searchResults = []): string
     {
@@ -156,7 +177,8 @@ PROMPT;
     private function parseResponse(string $text, string $claim): array
     {
         try {
-            Log::info('Chutes AI Raw Response: ' . $text);
+            // Log response untuk debugging
+            Log::info('Gemini Raw Response: ' . $text);
             
             // Bersihkan response dari markdown formatting jika ada
             $cleanText = $this->cleanResponse($text);
@@ -172,7 +194,7 @@ PROMPT;
                 $data = json_decode($jsonString, true);
                 
                 if ($data && isset($data['explanation'])) {
-                    Log::info('Successfully parsed Chutes AI JSON response');
+                    Log::info('Successfully parsed JSON response');
                     return [
                         'success' => true,
                         'explanation' => (string) ($data['explanation'] ?? 'Tidak ada penjelasan tersedia'),
@@ -181,7 +203,7 @@ PROMPT;
                         'claim' => (string) $claim,
                     ];
                 } else {
-                    Log::warning('Chutes AI JSON parsed but missing explanation field');
+                    Log::warning('JSON parsed but missing explanation field');
                 }
             } else {
                 Log::warning('No JSON found in response');
@@ -191,7 +213,7 @@ PROMPT;
             return $this->parseTextResponse($cleanText, $claim);
             
         } catch (\Exception $e) {
-            Log::error('Error parsing Chutes AI response: ' . $e->getMessage());
+            Log::error('Error parsing Gemini response: ' . $e->getMessage());
             return $this->getFallbackResponse($claim);
         }
     }
@@ -266,7 +288,7 @@ PROMPT;
             'sources' => '',
             'analysis' => 'Tidak ada analisis tersedia',
             'claim' => (string) $claim,
-            'error' => 'Layanan analisis AI tidak tersedia'
+            'error' => 'Gemini API tidak tersedia'
         ];
     }
     private function getFallbackWithSearchData(string $claim, array $searchResults = []): array
@@ -279,11 +301,11 @@ PROMPT;
             $explanation = 'Berdasarkan hasil pencarian Google, klaim ini memerlukan verifikasi lebih lanjut.';
             $sources = '';
             
-            $analysis = "Analisis berdasarkan hasil pencarian Google:\n\n";
+            $analysis = 'Analisis berdasarkan hasil pencarian Google:\n\n';
             foreach (array_slice($searchResults, 0, 3) as $index => $result) {
-                $analysis .= ($index + 1) . '. ' . ($result['title'] ?? 'Tidak ada judul') . "\n";
-                $analysis .= '   URL: ' . ($result['link'] ?? 'Tidak ada URL') . "\n";
-                $analysis .= '   Snippet: ' . substr($result['snippet'] ?? 'Tidak ada snippet', 0, 100) . "...\n\n";
+                $analysis .= ($index + 1) . '. ' . ($result['title'] ?? 'Tidak ada judul') . '\n';
+                $analysis .= '   URL: ' . ($result['link'] ?? 'Tidak ada URL') . '\n';
+                $analysis .= '   Snippet: ' . substr($result['snippet'] ?? 'Tidak ada snippet', 0, 100) . '...\n\n';
             }
             $analysis .= 'Silakan periksa sumber-sumber di atas untuk verifikasi lebih lanjut.';
         }

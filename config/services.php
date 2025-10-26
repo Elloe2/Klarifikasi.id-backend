@@ -45,10 +45,4 @@ return [
         'api_key' => env('GEMINI_API_KEY'),
     ],
 
-    'chutes' => [
-        'api_token' => env('CHUTES_API_TOKEN'),
-        'base_url' => env('CHUTES_API_BASE_URL', 'https://llm.chutes.ai/v1/chat/completions'),
-        'model' => env('CHUTES_API_MODEL', 'openai/gpt-oss-120b'),
-    ],
-
 ];
