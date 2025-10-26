@@ -6,8 +6,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Service untuk berkomunikasi dengan layanan LLM Chutes AI
- * Menggunakan HTTP client untuk mengakses endpoint chat completions
+ * Service untuk berkomunikasi dengan Google Gemini AI
+ * Menggunakan HTTP client untuk mengakses Gemini API
  */
 class GeminiService
 {
@@ -279,11 +279,11 @@ PROMPT;
             $explanation = 'Berdasarkan hasil pencarian Google, klaim ini memerlukan verifikasi lebih lanjut.';
             $sources = '';
             
-            $analysis = 'Analisis berdasarkan hasil pencarian Google:\n\n';
+            $analysis = "Analisis berdasarkan hasil pencarian Google:\n\n";
             foreach (array_slice($searchResults, 0, 3) as $index => $result) {
-                $analysis .= ($index + 1) . '. ' . ($result['title'] ?? 'Tidak ada judul') . '\n';
-                $analysis .= '   URL: ' . ($result['link'] ?? 'Tidak ada URL') . '\n';
-                $analysis .= '   Snippet: ' . substr($result['snippet'] ?? 'Tidak ada snippet', 0, 100) . '...\n\n';
+                $analysis .= ($index + 1) . '. ' . ($result['title'] ?? 'Tidak ada judul') . "\n";
+                $analysis .= '   URL: ' . ($result['link'] ?? 'Tidak ada URL') . "\n";
+                $analysis .= '   Snippet: ' . substr($result['snippet'] ?? 'Tidak ada snippet', 0, 100) . "...\n\n";
             }
             $analysis .= 'Silakan periksa sumber-sumber di atas untuk verifikasi lebih lanjut.';
         }
