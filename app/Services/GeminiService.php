@@ -140,7 +140,7 @@ class GeminiService
 
     /**
      * Membangun prompt untuk Gemini AI dengan data pencarian Google CSE
-     * SIMPLIFIED version - fokus pada explanation dan analysis saja
+     * ULTRA SIMPLE version - hanya explanation dan analysis
      */
     private function buildPrompt(string $claim, array $searchResults = []): string
     {
@@ -150,131 +150,79 @@ class GeminiService
             $items = [];
             foreach ($searchResults as $index => $result) {
                 $items[] = sprintf(
-                    '%d. %s - %s',
+                    '%d. %s',
                     $index + 1,
-                    $result['title'] ?? 'Tidak ada judul',
                     $result['snippet'] ?? 'Tidak ada snippet'
                 );
             }
-            $searchData = "\n\nHasil Pencarian:\n" . implode("\n", $items);
+            $searchData = "\n\nData:\n" . implode("\n", $items);
         }
 
         return <<<PROMPT
-Anda adalah pakar pemeriksa fakta. Analisis klaim berikut secara objektif dan ringkas dalam bahasa Indonesia.
+Analisis klaim ini: "{$claim}"{$searchData}
 
-KLAIM: "{$claim}"{$searchData}
-
-Berikan analisis dalam format JSON dengan struktur berikut:
-{
-  "explanation": "Ringkasan singkat (1-2 kalimat) tentang klaim ini",
-  "detailed_analysis": "Analisis mendalam berdasarkan data pencarian (2-3 paragraf)"
-}
-
-INSTRUKSI:
-- Gunakan hanya informasi dari hasil pencarian di atas
-- Jika data tidak cukup, nyatakan bahwa bukti tidak memadai
-- Berikan penjelasan yang objektif dan berimbang
-- Jangan tambahkan teks di luar JSON
-- Pastikan JSON valid dan dapat di-parse
-
-CONTOH FORMAT:
-{
-  "explanation": "Klaim ini benar berdasarkan bukti yang tersedia",
-  "detailed_analysis": "Berdasarkan hasil pencarian, klaim ini didukung oleh beberapa sumber terpercaya yang menyebutkan..."
-}
+Berikan jawaban dalam format:
+explanation: [ringkasan singkat]
+analysis: [analisis mendalam]
 PROMPT;
     }
 
     /**
      * Parse response dari Gemini AI
-     * Enhanced version dengan source analysis dan accuracy scoring
+     * Simplified version - handle both JSON dan text format
      */
     private function parseResponse(string $text, string $claim): array
     {
         try {
-            // Log response untuk debugging
-            Log::info('Gemini Raw Response: ' . $text);
+            Log::info('Gemini Raw Response: ' . substr($text, 0, 200));
             
-            // Bersihkan response dari markdown formatting jika ada
             $cleanText = $this->cleanResponse($text);
             
-            // Coba extract JSON dari response
+            // Try JSON first
             $jsonStart = strpos($cleanText, '{');
             $jsonEnd = strrpos($cleanText, '}');
             
             if ($jsonStart !== false && $jsonEnd !== false) {
                 $jsonString = substr($cleanText, $jsonStart, $jsonEnd - $jsonStart + 1);
-                Log::info('Extracted JSON: ' . $jsonString);
-                
                 $data = json_decode($jsonString, true);
                 
                 if ($data && isset($data['explanation'])) {
-                    Log::info('Successfully parsed JSON response');
-                    Log::info('Response data keys: ' . implode(', ', array_keys($data)));
-                    
-                    // Enhanced response dengan source analysis
-                    $response = [
-                        'success' => true,
-                        'explanation' => (string) ($data['explanation'] ?? 'Tidak ada penjelasan tersedia'),
-                        'detailed_analysis' => (string) ($data['detailed_analysis'] ?? $data['analysis'] ?? 'Tidak ada analisis tersedia'),
-                        'claim' => (string) $claim,
-                    ];
-                    
-                    // Add source analysis jika tersedia
-                    if (!empty($data['source_analysis']) && is_array($data['source_analysis'])) {
-                        Log::info('Found source_analysis in response');
-                        $response['source_analysis'] = $data['source_analysis'];
-                    }
-                    
-                    // Add statistics jika tersedia
-                    if (!empty($data['statistics']) && is_array($data['statistics'])) {
-                        Log::info('Found statistics in response');
-                        $response['statistics'] = $data['statistics'];
-                    }
-                    
-                    // Add accuracy score jika tersedia
-                    if (!empty($data['accuracy_score']) && is_array($data['accuracy_score'])) {
-                        Log::info('Found accuracy_score in response');
-                        $response['accuracy_score'] = $data['accuracy_score'];
-                    }
-                    
-                    // FALLBACK: Jika enhanced data tidak ada, generate dari explanation
-                    if (empty($response['accuracy_score'])) {
-                        Log::info('Generating accuracy_score from explanation (fallback)');
-                        $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
-                            $response['explanation'],
-                            $claim
-                        );
-                    }
-                    
-                    if (empty($response['statistics'])) {
-                        Log::info('Generating default statistics (fallback)');
-                        $response['statistics'] = $this->generateDefaultStatistics();
-                    }
-                    
-                    if (empty($response['source_analysis'])) {
-                        Log::info('Setting empty source_analysis (fallback)');
-                        $response['source_analysis'] = [];
-                    }
-                    
-                    Log::info('Final response has accuracy_score: ' . (isset($response['accuracy_score']) ? 'YES' : 'NO'));
-                    Log::info('Final response has statistics: ' . (isset($response['statistics']) ? 'YES' : 'NO'));
-                    
-                    return $response;
-                } else {
-                    Log::warning('JSON parsed but missing explanation field');
+                    Log::info('Parsed JSON response successfully');
+                    return $this->formatResponse($data, $claim);
                 }
-            } else {
-                Log::warning('No JSON found in response');
             }
             
-            // Fallback jika JSON parsing gagal - coba parse manual
+            // Fallback: parse text format
+            Log::info('Parsing as text format');
             return $this->parseTextResponse($cleanText, $claim);
             
         } catch (\Exception $e) {
-            Log::error('Error parsing Gemini response: ' . $e->getMessage());
+            Log::error('Error parsing response: ' . $e->getMessage());
             return $this->getFallbackResponse($claim);
         }
+    }
+    
+    /**
+     * Format response dengan enhanced data
+     */
+    private function formatResponse(array $data, string $claim): array
+    {
+        $explanation = (string) ($data['explanation'] ?? $data['summary'] ?? 'Tidak ada penjelasan');
+        $analysis = (string) ($data['detailed_analysis'] ?? $data['analysis'] ?? 'Tidak ada analisis');
+        
+        $response = [
+            'success' => true,
+            'explanation' => $explanation,
+            'detailed_analysis' => $analysis,
+            'claim' => (string) $claim,
+        ];
+        
+        // Always add enhanced data
+        $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation($explanation, $claim);
+        $response['statistics'] = $this->generateDefaultStatistics();
+        $response['source_analysis'] = [];
+        
+        return $response;
     }
 
     /**

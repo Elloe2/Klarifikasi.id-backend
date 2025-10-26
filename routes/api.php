@@ -52,8 +52,8 @@ Route::get('/test-gemini', function () {
     }
 });
 
-// Test Gemini API dengan simple request
-Route::post('/test-gemini-request', function () {
+// Test Gemini API dengan simple request (GET untuk mudah di-test dari browser)
+Route::get('/test-gemini-request', function () {
     try {
         $apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY'));
         $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
@@ -61,6 +61,8 @@ Route::post('/test-gemini-request', function () {
         if (empty($apiKey)) {
             return response()->json(['error' => 'API Key not configured'], 400);
         }
+        
+        \Illuminate\Support\Facades\Log::info('Testing Gemini API with key: ' . substr($apiKey, 0, 10) . '...');
         
         $response = \Illuminate\Support\Facades\Http::timeout(30)
             ->withHeaders([
@@ -71,7 +73,7 @@ Route::post('/test-gemini-request', function () {
                 'contents' => [
                     [
                         'parts' => [
-                            ['text' => 'Halo, siapa nama Anda?']
+                            ['text' => 'Halo, siapa nama Anda? Jawab dalam 1 kalimat saja.']
                         ]
                     ]
                 ],
@@ -81,12 +83,21 @@ Route::post('/test-gemini-request', function () {
                 ],
             ]);
         
-        return response()->json([
+        $result = [
             'status' => $response->status(),
             'successful' => $response->successful(),
-            'body' => $response->json(),
-            'raw_body' => substr($response->body(), 0, 500),
-        ]);
+            'headers' => $response->headers(),
+        ];
+        
+        if ($response->successful()) {
+            $result['response'] = $response->json();
+            $result['text'] = data_get($response->json(), 'candidates.0.content.parts.0.text');
+        } else {
+            $result['error_body'] = $response->json();
+            $result['raw_body'] = substr($response->body(), 0, 1000);
+        }
+        
+        return response()->json($result);
     } catch (\Exception $e) {
         return response()->json([
             'error' => $e->getMessage(),
