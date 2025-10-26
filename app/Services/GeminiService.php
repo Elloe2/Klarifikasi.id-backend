@@ -111,7 +111,7 @@ class GeminiService
                 }
 
                 Log::info('Gemini API Success - Response received');
-                return $this->parseResponse((string) $text, $claim);
+                return $this->parseResponse((string) $text, $claim, $searchResults);
             } else {
                 Log::error('Gemini API Error Status: ' . $response->status());
                 Log::error('Gemini API Error Body: ' . $response->body());
@@ -151,8 +151,17 @@ class GeminiService
         }
 
         $jsonTemplate = json_encode([
-            'explanation' => 'Penjelasan singkat dan objektif tentang klaim',
-            'analysis' => 'Analisis mendalam berdasarkan data yang tersedia',
+            'summary' => 'Ringkasan objektif tentang kebenaran klaim dalam <=3 kalimat',
+            'analysis' => 'Analisis mendalam berdasarkan bukti yang tersedia',
+            'verdict_explanation' => 'Penjelasan singkat bagaimana simpulan dibuat',
+            'sources_breakdown' => [
+                [
+                    'source_reference' => 'Nama domain atau judul sumber',
+                    'stance' => 'SUPPORT|OPPOSE|NEUTRAL',
+                    'reasoning' => 'Ringkasan alasan dari sumber terkait klaim',
+                    'quote' => 'Cuplikan ringkas bila tersedia',
+                ],
+            ],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
         return <<<PROMPT
@@ -163,7 +172,8 @@ KLAIM: "{$claim}"{$searchData}
 INSTRUKSI:
 - Gunakan hanya informasi dari DATA_PENDUKUNG di atas.
 - Jika data tidak cukup, nyatakan bahwa bukti tidak memadai.
-- Jika menyebutkan sumber, gunakan nama situs/portal (misal kompas.com) bukan nomor indeks dan gabungkan dengan konteksnya.
+- Tentukan stance setiap sumber (SUPPORT, OPPOSE, atau NEUTRAL) terhadap klaim berdasarkan isinya.
+- Berikan reasoning yang jelas dan quote singkat (jika ada) untuk tiap sumber.
 - Jangan tambahkan penjelasan di luar struktur JSON.
 
 FORMAT OUTPUT (JSON valid tanpa markdown):
@@ -174,7 +184,7 @@ PROMPT;
     /**
      * Parse response dari Gemini AI
      */
-    private function parseResponse(string $text, string $claim): array
+    private function parseResponse(string $text, string $claim, array $searchResults = []): array
     {
         try {
             // Log response untuk debugging
@@ -193,28 +203,22 @@ PROMPT;
                 
                 $data = json_decode($jsonString, true);
                 
-                if ($data && isset($data['explanation'])) {
+                if ($data) {
                     Log::info('Successfully parsed JSON response');
-                    return [
-                        'success' => true,
-                        'explanation' => (string) ($data['explanation'] ?? 'Tidak ada penjelasan tersedia'),
-                        'sources' => (string) ($data['sources'] ?? ''),
-                        'analysis' => (string) ($data['analysis'] ?? 'Tidak ada analisis tersedia'),
-                        'claim' => (string) $claim,
-                    ];
+                    return $this->normalizeAnalysisData($data, $claim, $searchResults);
                 } else {
                     Log::warning('JSON parsed but missing explanation field');
                 }
             } else {
                 Log::warning('No JSON found in response');
             }
-            
+
             // Fallback jika JSON parsing gagal - coba parse manual
-            return $this->parseTextResponse($cleanText, $claim);
-            
+            return $this->parseTextResponse($cleanText, $claim, $searchResults);
+
         } catch (\Exception $e) {
             Log::error('Error parsing Gemini response: ' . $e->getMessage());
-            return $this->getFallbackResponse($claim);
+            return $this->getFallbackResponse($claim, $searchResults);
         }
     }
 
@@ -240,7 +244,7 @@ PROMPT;
     /**
      * Parse response text jika JSON parsing gagal
      */
-    private function parseTextResponse(string $text, string $claim): array
+    private function parseTextResponse(string $text, string $claim, array $searchResults = []): array
     {
         // Jika response tidak dalam format JSON, coba extract informasi manual
         $explanation = 'Tidak dapat menganalisis klaim ini dengan pasti.';
@@ -268,39 +272,39 @@ PROMPT;
         }
         
         // Pastikan semua field adalah string
-        return [
-            'success' => true,
-            'explanation' => (string) $explanation,
-            'sources' => (string) $sources,
+        $base = [
+            'summary' => (string) $explanation,
             'analysis' => (string) $analysis,
-            'claim' => (string) $claim,
+            'verdict_explanation' => 'Respons AI tidak dalam format terstruktur, gunakan hasil pencarian manual.',
+            'sources_breakdown' => [],
         ];
+
+        return $this->normalizeAnalysisData($base, $claim, $searchResults);
     }
 
     /**
      * Fallback response jika API gagal
      */
-    private function getFallbackResponse(string $claim): array
+    private function getFallbackResponse(string $claim, array $searchResults = []): array
     {
-        return [
-            'success' => false,
-            'explanation' => 'Tidak dapat menganalisis klaim ini saat ini. Silakan coba lagi nanti.',
-            'sources' => '',
+        return $this->normalizeAnalysisData([
+            'summary' => 'Tidak dapat menganalisis klaim ini saat ini.',
             'analysis' => 'Tidak ada analisis tersedia',
-            'claim' => (string) $claim,
-            'error' => 'Gemini API tidak tersedia'
-        ];
+            'verdict_explanation' => 'Analisis AI tidak tersedia, gunakan sumber manual.',
+            'sources_breakdown' => [],
+            'error' => 'Gemini API tidak tersedia',
+        ], $claim, $searchResults, false);
     }
     private function getFallbackWithSearchData(string $claim, array $searchResults = []): array
     {
         $explanation = 'Tidak dapat menganalisis klaim ini dengan AI saat ini.';
         $sources = '';
         $analysis = 'Tidak ada analisis tersedia';
-        
+
         if (!empty($searchResults)) {
             $explanation = 'Berdasarkan hasil pencarian Google, klaim ini memerlukan verifikasi lebih lanjut.';
             $sources = '';
-            
+
             $analysis = 'Analisis berdasarkan hasil pencarian Google:\n\n';
             foreach (array_slice($searchResults, 0, 3) as $index => $result) {
                 $analysis .= ($index + 1) . '. ' . ($result['title'] ?? 'Tidak ada judul') . '\n';
@@ -310,12 +314,182 @@ PROMPT;
             $analysis .= 'Silakan periksa sumber-sumber di atas untuk verifikasi lebih lanjut.';
         }
         
-        return [
-            'success' => true,
-            'explanation' => $explanation,
-            'sources' => $sources,
+        return $this->normalizeAnalysisData([
+            'summary' => $explanation,
             'analysis' => $analysis,
+            'verdict_explanation' => 'Analisis AI tidak tersedia, klasifikasi ditetapkan sebagai ambigu.',
+            'sources_breakdown' => $this->buildNeutralBreakdownFromSearch($searchResults),
+        ], $claim, $searchResults);
+    }
+
+    private function normalizeAnalysisData(array $data, string $claim, array $searchResults = [], bool $success = true): array
+    {
+        $summary = (string) ($data['summary'] ?? $data['explanation'] ?? 'Tidak ada penjelasan tersedia');
+        $analysis = (string) ($data['analysis'] ?? 'Tidak ada analisis tersedia');
+        $verdictExplanation = (string) ($data['verdict_explanation'] ?? '');
+        $rawSources = $data['sources_breakdown'] ?? [];
+        $sourceBreakdown = $this->formatSourceBreakdown($rawSources);
+
+        if (empty($sourceBreakdown) && !empty($searchResults)) {
+            $sourceBreakdown = $this->buildNeutralBreakdownFromSearch($searchResults);
+        }
+
+        $aggregates = $this->calculateSourceAggregates($sourceBreakdown);
+
+        if ($verdictExplanation === '') {
+            $verdictExplanation = $this->buildVerdictExplanation($aggregates, $sourceBreakdown, $summary);
+        }
+
+        $sourcesText = $this->buildSourcesText($sourceBreakdown);
+
+        return [
+            'success' => $success,
             'claim' => (string) $claim,
+            'explanation' => $summary,
+            'analysis' => $analysis,
+            'sources' => $sourcesText,
+            'verdict' => [
+                'label' => $aggregates['verdict_label'],
+                'score' => $aggregates['verdict_score'],
+                'reason' => $verdictExplanation,
+                'supporting_sources' => $aggregates['supporting'],
+                'opposing_sources' => $aggregates['opposing'],
+                'neutral_sources' => $aggregates['neutral'],
+                'total_sources' => $aggregates['total'],
+            ],
+            'source_breakdown' => $sourceBreakdown,
+            'error' => $data['error'] ?? null,
         ];
+    }
+
+    private function formatSourceBreakdown(mixed $rawSources): array
+    {
+        if (!is_array($rawSources)) {
+            return [];
+        }
+
+        $formatted = [];
+        foreach ($rawSources as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $formatted[] = [
+                'index' => $index + 1,
+                'source_reference' => (string) ($item['source_reference'] ?? ''),
+                'stance' => strtoupper((string) ($item['stance'] ?? 'NEUTRAL')),
+                'reasoning' => (string) ($item['reasoning'] ?? 'Tidak ada penjelasan tersedia'),
+                'quote' => isset($item['quote']) ? (string) $item['quote'] : null,
+            ];
+        }
+
+        return $formatted;
+    }
+
+    private function buildNeutralBreakdownFromSearch(array $searchResults): array
+    {
+        if (empty($searchResults)) {
+            return [];
+        }
+
+        $breakdown = [];
+        foreach ($searchResults as $index => $result) {
+            $breakdown[] = [
+                'index' => $index + 1,
+                'source_reference' => (string) ($result['displayLink'] ?? $result['title'] ?? 'Sumber'),
+                'stance' => 'NEUTRAL',
+                'reasoning' => 'Tidak ada analisis AI pada sumber ini. Lakukan verifikasi manual.',
+                'quote' => isset($result['snippet']) ? substr((string) $result['snippet'], 0, 180) : null,
+            ];
+        }
+
+        return $breakdown;
+    }
+
+    private function calculateSourceAggregates(array $sourceBreakdown): array
+    {
+        $supporting = 0;
+        $opposing = 0;
+        $neutral = 0;
+
+        foreach ($sourceBreakdown as $source) {
+            $stance = $source['stance'] ?? 'NEUTRAL';
+            if ($stance === 'SUPPORT') {
+                $supporting++;
+            } elseif ($stance === 'OPPOSE' || $stance === 'OPPOSING') {
+                $opposing++;
+            } else {
+                $neutral++;
+            }
+        }
+
+        $total = $supporting + $opposing + $neutral;
+        $supportRatio = $total > 0 ? $supporting / $total : 0.0;
+        $opposeRatio = $total > 0 ? $opposing / $total : 0.0;
+
+        $verdictLabel = 'RAGU-RAGU';
+        if ($supportRatio >= 0.6 && $supporting >= $opposing + 1) {
+            $verdictLabel = 'FAKTA';
+        } elseif ($opposeRatio >= 0.5 && $opposing >= $supporting + 1) {
+            $verdictLabel = 'HOAX';
+        }
+
+        $verdictScore = round($supportRatio * 100, 2);
+
+        return [
+            'supporting' => $supporting,
+            'opposing' => $opposing,
+            'neutral' => $neutral,
+            'total' => $total,
+            'verdict_label' => $verdictLabel,
+            'verdict_score' => $verdictScore,
+        ];
+    }
+
+    private function buildVerdictExplanation(array $aggregates, array $sourceBreakdown, string $summary): string
+    {
+        $supporting = $aggregates['supporting'];
+        $opposing = $aggregates['opposing'];
+        $neutral = $aggregates['neutral'];
+
+        if ($aggregates['total'] === 0) {
+            return 'Tidak ada sumber yang dapat dianalisis untuk menentukan verdict.';
+        }
+
+        $parts = [];
+        $parts[] = sprintf('Mendukung: %d sumber, Menentang: %d, Netral: %d.', $supporting, $opposing, $neutral);
+
+        if ($aggregates['verdict_label'] === 'FAKTA') {
+            $parts[] = 'Mayoritas sumber mendukung klaim sehingga diklasifikasikan sebagai fakta.';
+        } elseif ($aggregates['verdict_label'] === 'HOAX') {
+            $parts[] = 'Mayoritas sumber menentang klaim sehingga diklasifikasikan sebagai hoax.';
+        } else {
+            $parts[] = 'Distribusi sumber tidak cukup jelas, sehingga dianggap ambigu.';
+        }
+
+        if ($summary !== '') {
+            $parts[] = 'Ringkasan: ' . $summary;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function buildSourcesText(array $sourceBreakdown): string
+    {
+        if (empty($sourceBreakdown)) {
+            return '';
+        }
+
+        $references = [];
+        foreach ($sourceBreakdown as $source) {
+            $reference = trim((string) ($source['source_reference'] ?? ''));
+            if ($reference !== '') {
+                $references[] = $reference;
+            }
+        }
+
+        $references = array_unique($references);
+
+        return implode(', ', $references);
     }
 }
