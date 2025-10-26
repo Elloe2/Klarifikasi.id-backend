@@ -126,9 +126,63 @@ Route::get('/test-search', function () {
     }
 });
 
-// Route pencarian dengan autentikasi opsional
-Route::post('/search', [SearchController::class, 'search'])
-    ->middleware('throttle:10,1');
+// Simple search test tanpa services
+Route::post('/search-simple', function (Illuminate\Http\Request $request) {
+    return response()->json([
+        'query' => $request->input('query'),
+        'results' => [],
+        'gemini_analysis' => [
+            'success' => true,
+            'explanation' => 'Test response',
+            'detailed_analysis' => 'This is a test',
+            'claim' => $request->input('query'),
+            'accuracy_score' => [
+                'verdict' => 'RAGU-RAGU',
+                'confidence' => 50,
+                'reasoning' => 'Test',
+                'recommendation' => 'Test'
+            ],
+            'statistics' => [
+                'total_sources' => 0,
+                'support_count' => 0,
+                'oppose_count' => 0,
+                'neutral_count' => 0
+            ],
+            'source_analysis' => []
+        ]
+    ]);
+});
+
+// Route pencarian dengan autentikasi opsional - TEMPORARILY DISABLED FOR DEBUG
+// Route::post('/search', [SearchController::class, 'search'])
+//     ->middleware('throttle:10,1');
+
+// TEMPORARY: Simple search endpoint untuk bypass controller
+Route::post('/search', function (Illuminate\Http\Request $request) {
+    return response()->json([
+        'query' => $request->input('query', ''),
+        'results' => [],
+        'gemini_analysis' => [
+            'success' => true,
+            'explanation' => 'Backend sedang dalam perbaikan. Fitur pencarian sementara tidak tersedia.',
+            'detailed_analysis' => 'Kami sedang memperbaiki sistem. Silakan coba lagi nanti.',
+            'claim' => $request->input('query', ''),
+            'accuracy_score' => [
+                'verdict' => 'RAGU-RAGU',
+                'confidence' => 50,
+                'reasoning' => 'Sistem sedang dalam perbaikan',
+                'recommendation' => 'Silakan coba lagi nanti'
+            ],
+            'statistics' => [
+                'total_sources' => 0,
+                'support_count' => 0,
+                'oppose_count' => 0,
+                'neutral_count' => 0
+            ],
+            'source_analysis' => []
+        ]
+    ]);
+});
 
 // Route untuk mendapatkan hasil pencarian berdasarkan query
 Route::get('/search/{query}', [SearchController::class, 'searchByQuery'])
