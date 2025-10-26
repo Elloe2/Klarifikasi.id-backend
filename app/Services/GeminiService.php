@@ -141,165 +141,57 @@ class GeminiService
 
     /**
      * Membangun prompt untuk Gemini AI dengan data pencarian Google CSE
-     * SUPER SIMPLE version - minimal format
+     * ULTRA SIMPLE - hanya minta plain text response
      */
     private function buildPrompt(string $claim, array $searchResults = []): string
     {
-        $searchData = '';
-        
-        if (!empty($searchResults)) {
-            foreach (array_slice($searchResults, 0, 5) as $index => $result) {
-                $searchData .= "\n" . ($index + 1) . ". " . ($result['snippet'] ?? '');
-            }
-        }
-
-        return "Analisis klaim: {$claim}{$searchData}\n\nBerikan ringkasan dan analisis.";
+        return "Analisis klaim ini dengan singkat: {$claim}";
     }
 
     /**
      * Parse response dari Gemini AI
-     * Simplified version - handle both JSON dan text format
+     * ULTRA SIMPLE - treat semua response sebagai plain text
      */
     private function parseResponse(string $text, string $claim): array
     {
         try {
-            Log::info('Gemini Raw Response: ' . substr($text, 0, 200));
+            $cleanText = trim($text);
             
-            $cleanText = $this->cleanResponse($text);
+            // Split text menjadi sentences untuk explanation dan analysis
+            $sentences = preg_split('/[.!?]+/', $cleanText, 2);
             
-            // Try JSON first
-            $jsonStart = strpos($cleanText, '{');
-            $jsonEnd = strrpos($cleanText, '}');
+            $explanation = trim($sentences[0] ?? $cleanText);
+            $analysis = trim($sentences[1] ?? $cleanText);
             
-            if ($jsonStart !== false && $jsonEnd !== false) {
-                $jsonString = substr($cleanText, $jsonStart, $jsonEnd - $jsonStart + 1);
-                $data = json_decode($jsonString, true);
-                
-                if ($data && isset($data['explanation'])) {
-                    Log::info('Parsed JSON response successfully');
-                    return $this->formatResponse($data, $claim);
-                }
+            // Limit length
+            if (strlen($explanation) > 150) {
+                $explanation = substr($explanation, 0, 150) . '...';
+            }
+            if (strlen($analysis) > 500) {
+                $analysis = substr($analysis, 0, 500) . '...';
             }
             
-            // Fallback: parse text format
-            Log::info('Parsing as text format');
-            return $this->parseTextResponse($cleanText, $claim);
+            $response = [
+                'success' => true,
+                'explanation' => $explanation ?: 'Analisis diterima',
+                'detailed_analysis' => $analysis ?: $cleanText,
+                'claim' => (string) $claim,
+            ];
+            
+            // Always add enhanced data
+            $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
+                $explanation,
+                $claim
+            );
+            $response['statistics'] = $this->generateDefaultStatistics();
+            $response['source_analysis'] = [];
+            
+            return $response;
             
         } catch (\Exception $e) {
             Log::error('Error parsing response: ' . $e->getMessage());
             return $this->getFallbackResponse($claim);
         }
-    }
-    
-    /**
-     * Format response dengan enhanced data
-     */
-    private function formatResponse(array $data, string $claim): array
-    {
-        $explanation = (string) ($data['explanation'] ?? $data['summary'] ?? 'Tidak ada penjelasan');
-        $analysis = (string) ($data['detailed_analysis'] ?? $data['analysis'] ?? 'Tidak ada analisis');
-        
-        $response = [
-            'success' => true,
-            'explanation' => $explanation,
-            'detailed_analysis' => $analysis,
-            'claim' => (string) $claim,
-        ];
-        
-        // Always add enhanced data
-        $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation($explanation, $claim);
-        $response['statistics'] = $this->generateDefaultStatistics();
-        $response['source_analysis'] = [];
-        
-        return $response;
-    }
-
-    /**
-     * Bersihkan response dari markdown formatting dan JSON artifacts
-     */
-    private function cleanResponse(string $text): string
-    {
-        // Hapus markdown code blocks
-        $text = preg_replace('/```json\s*/', '', $text);
-        $text = preg_replace('/```\s*/', '', $text);
-        
-        // Hapus markdown formatting
-        $text = preg_replace('/\*\*(.*?)\*\*/', '$1', $text);
-        $text = preg_replace('/\*(.*?)\*/', '$1', $text);
-        
-        // Hapus escaped quotes dan JSON artifacts
-        $text = preg_replace('/\\"/', '"', $text);
-        $text = preg_replace('/\\\\//', '\\', $text);
-        
-        // Hapus "Klaim {" pattern di awal
-        $text = preg_replace('/^Klaim\s*\{/', '', $text);
-        
-        // Hapus pattern: {"explanation": "..." di awal (jika JSON terputus)
-        $text = preg_replace('/^\{\s*"explanation"\s*:\s*"/', '', $text);
-        
-        // Hapus pattern: "Klaim \"..." di awal
-        $text = preg_replace('/^"Klaim\s*\\"/', '', $text);
-        
-        // Hapus trailing quotes dan braces
-        $text = preg_replace('/["}]+\s*$/', '', $text);
-        
-        // Hapus extra whitespace
-        $text = preg_replace('/\s+/', ' ', $text);
-        
-        return trim($text);
-    }
-
-    /**
-     * Parse response text jika JSON parsing gagal
-     */
-    private function parseTextResponse(string $text, string $claim): array
-    {
-        Log::info('Parsing text response (JSON parsing failed)');
-        
-        // Jika response tidak dalam format JSON, coba extract informasi manual
-        $explanation = 'Tidak dapat menganalisis klaim ini dengan pasti.';
-        $sources = '';
-        $analysis = 'Tidak ada analisis tersedia';
-        
-        // Coba extract penjelasan dari response text
-        if (!empty($text)) {
-            // Ambil beberapa kalimat pertama sebagai explanation
-            $sentences = preg_split('/[.!?]+/', $text);
-            $explanation = trim($sentences[0] ?? $text);
-            
-            // Jika explanation terlalu panjang, potong
-            if (strlen($explanation) > 200) {
-                $explanation = substr($explanation, 0, 200) . '...';
-            }
-            
-            // Gunakan seluruh response sebagai analysis
-            $analysis = $text;
-            if (strlen($analysis) > 500) {
-                $analysis = substr($analysis, 0, 500) . '...';
-            }
-            
-            $sources = '';
-        }
-        
-        // Pastikan semua field adalah string
-        $response = [
-            'success' => true,
-            'explanation' => (string) $explanation,
-            'detailed_analysis' => (string) $analysis,
-            'claim' => (string) $claim,
-        ];
-        
-        // ALWAYS add enhanced data untuk consistency
-        $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
-            $explanation,
-            $claim
-        );
-        $response['statistics'] = $this->generateDefaultStatistics();
-        $response['source_analysis'] = [];
-        
-        Log::info('Text response parsed with enhanced data');
-        
-        return $response;
     }
 
     /**
