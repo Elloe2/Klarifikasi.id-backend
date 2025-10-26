@@ -20,7 +20,7 @@ class GeminiService
         
         // Log API key untuk debugging (hanya sebagian)
         $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
-        Log::info('GeminiService initialized with API Key: ' . $maskedKey);
+        Log::debug('GeminiService initialized with API Key: ' . $maskedKey);
         
         // Validasi API key tanpa throw exception
         if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
@@ -35,7 +35,7 @@ class GeminiService
     {
         // Log API key status
         $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
-        Log::info('GeminiService analyzeClaim called with API Key: ' . $maskedKey);
+        Log::debug('GeminiService analyzeClaim called with API Key: ' . $maskedKey);
         
         // Check API key validity
         if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
@@ -44,7 +44,7 @@ class GeminiService
         }
         
         try {
-            Log::info('Sending request to Gemini API...');
+            Log::debug('Sending request to Gemini API...');
             
             $response = Http::timeout(30)
                 ->withHeaders([
@@ -85,7 +85,7 @@ class GeminiService
                     ]
                 ]);
 
-            Log::info('Gemini API Response Status: ' . $response->status());
+            Log::debug('Gemini API Response Status: ' . $response->status());
             
             if ($response->successful()) {
                 $data = $response->json();
@@ -110,7 +110,7 @@ class GeminiService
                     return $fallback;
                 }
 
-                Log::info('Gemini API Success - Response received');
+                Log::debug('Gemini API Success - Response received');
                 return $this->parseResponse((string) $text, $claim, $searchResults);
             } else {
                 Log::error('Gemini API Error Status: ' . $response->status());
@@ -188,7 +188,7 @@ PROMPT;
     {
         try {
             // Log response untuk debugging
-            Log::info('Gemini Raw Response: ' . $text);
+            Log::debug('Gemini Raw Response length: ' . strlen($text));
             
             // Bersihkan response dari markdown formatting jika ada
             $cleanText = $this->cleanResponse($text);
@@ -199,12 +199,12 @@ PROMPT;
             
             if ($jsonStart !== false && $jsonEnd !== false) {
                 $jsonString = substr($cleanText, $jsonStart, $jsonEnd - $jsonStart + 1);
-                Log::info('Extracted JSON: ' . $jsonString);
+                Log::debug('Extracted JSON length: ' . strlen($jsonString));
                 
                 $data = json_decode($jsonString, true);
                 
                 if ($data) {
-                    Log::info('Successfully parsed JSON response');
+                    Log::debug('Successfully parsed JSON response');
                     return $this->normalizeAnalysisData($data, $claim, $searchResults);
                 } else {
                     Log::warning('JSON parsed but missing explanation field');
