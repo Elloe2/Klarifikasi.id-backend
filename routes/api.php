@@ -16,6 +16,11 @@ Route::get('/health', function () {
     ]);
 });
 
+// MINIMAL test endpoint
+Route::any('/ping', function () {
+    return ['pong' => true, 'time' => time()];
+});
+
 // Test Google CSE connection
 Route::get('/test-google-cse', function () {
     try {

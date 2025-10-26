@@ -8,6 +8,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
+        apiPrefix: 'api',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
@@ -20,6 +21,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Aktifkan CORS untuk semua API routes
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
+        ]);
+        
+        // Enable API middleware group
+        $middleware->group('api', [
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
