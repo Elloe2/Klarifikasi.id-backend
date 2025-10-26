@@ -162,25 +162,42 @@ Route::post('/search-simple', function (Illuminate\Http\Request $request) {
 // Route::post('/search', [SearchController::class, 'search'])
 //     ->middleware('throttle:10,1');
 
-// TEMPORARY: Simple search endpoint untuk bypass controller
+// TEMPORARY: Simple search endpoint untuk bypass controller - WITH TEST DATA
 Route::post('/search', function (Illuminate\Http\Request $request) {
+    \Log::info('Search endpoint called', ['query' => $request->input('query')]);
+    
     return response()->json([
         'query' => $request->input('query', ''),
-        'results' => [],
+        'results' => [
+            [
+                'title' => 'Test Result 1',
+                'snippet' => 'This is a test result snippet',
+                'link' => 'https://example.com/1',
+                'displayLink' => 'example.com',
+                'formattedUrl' => 'https://example.com/1',
+            ],
+            [
+                'title' => 'Test Result 2',
+                'snippet' => 'Another test result',
+                'link' => 'https://example.com/2',
+                'displayLink' => 'example.com',
+                'formattedUrl' => 'https://example.com/2',
+            ]
+        ],
         'gemini_analysis' => [
             'success' => true,
-            'explanation' => 'Backend sedang dalam perbaikan. Fitur pencarian sementara tidak tersedia.',
-            'detailed_analysis' => 'Kami sedang memperbaiki sistem. Silakan coba lagi nanti.',
+            'explanation' => 'TEST: Backend berfungsi dengan baik!',
+            'detailed_analysis' => 'Ini adalah response test dari backend.',
             'claim' => $request->input('query', ''),
             'accuracy_score' => [
-                'verdict' => 'RAGU-RAGU',
-                'confidence' => 50,
-                'reasoning' => 'Sistem sedang dalam perbaikan',
-                'recommendation' => 'Silakan coba lagi nanti'
+                'verdict' => 'FAKTA',
+                'confidence' => 85,
+                'reasoning' => 'Test response',
+                'recommendation' => 'Backend working'
             ],
             'statistics' => [
-                'total_sources' => 0,
-                'support_count' => 0,
+                'total_sources' => 2,
+                'support_count' => 2,
                 'oppose_count' => 0,
                 'neutral_count' => 0
             ],
