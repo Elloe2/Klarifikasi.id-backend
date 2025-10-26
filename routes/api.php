@@ -115,9 +115,43 @@ Route::get('/test-gemini-request', function () {
     }
 });
 
-// Route pencarian dengan autentikasi opsional
-Route::post('/search', [SearchController::class, 'search'])
-    ->middleware('throttle:10,1');
+// DIAGNOSTIC: Test if route is accessible
+Route::post('/search', function (Illuminate\Http\Request $request) {
+    try {
+        \Log::info('Search route hit', ['query' => $request->input('query')]);
+        
+        // Try to instantiate services
+        $googleService = app(\App\Services\GoogleSearchService::class);
+        $geminiService = app(\App\Services\GeminiService::class);
+        
+        \Log::info('Services instantiated successfully');
+        
+        // Return simple response
+        return response()->json([
+            'status' => 'ok',
+            'message' => 'Route accessible, services loaded',
+            'query' => $request->input('query'),
+            'results' => [],
+            'gemini_analysis' => [
+                'success' => true,
+                'explanation' => 'Diagnostic: Backend berfungsi',
+                'detailed_analysis' => 'Services dapat di-load',
+                'claim' => $request->input('query', ''),
+            ]
+        ]);
+    } catch (\Exception $e) {
+        \Log::error('Search route error', [
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ], 500);
+    }
+});
 
 // Route untuk mendapatkan hasil pencarian berdasarkan query
 Route::get('/search/{query}', [SearchController::class, 'searchByQuery'])
