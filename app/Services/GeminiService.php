@@ -134,7 +134,7 @@ class GeminiService
 
     /**
      * Membangun prompt untuk Gemini AI dengan data pencarian Google CSE
-     * Enhanced version dengan source analysis dan accuracy scoring
+     * SIMPLIFIED version - fokus pada explanation dan analysis saja
      */
     private function buildPrompt(string $claim, array $searchResults = []): string
     {
@@ -144,73 +144,38 @@ class GeminiService
             $items = [];
             foreach ($searchResults as $index => $result) {
                 $items[] = sprintf(
-                    '%d. situs="%s" judul="%s" url="%s" ringkasan="%s"',
+                    '%d. %s - %s',
                     $index + 1,
-                    $result['displayLink'] ?? 'Tidak ada domain',
                     $result['title'] ?? 'Tidak ada judul',
-                    $result['link'] ?? 'Tidak ada URL',
                     $result['snippet'] ?? 'Tidak ada snippet'
                 );
             }
-            $searchData = "\n\nDATA_PENDUKUNG:\n" . implode("\n", $items);
+            $searchData = "\n\nHasil Pencarian:\n" . implode("\n", $items);
         }
 
-        $jsonTemplate = json_encode([
-            'explanation' => 'Ringkasan singkat tentang klaim',
-            'detailed_analysis' => 'Analisis mendalam berdasarkan data',
-            'source_analysis' => [
-                [
-                    'index' => 1,
-                    'stance' => 'SUPPORT|OPPOSE|NEUTRAL',
-                    'reasoning' => 'Penjelasan singkat mengapa sumber ini mendukung/menolak/netral',
-                    'quote' => 'Kutipan relevan dari sumber (jika ada)'
-                ]
-            ],
-            'statistics' => [
-                'total_sources' => count($searchResults),
-                'support_count' => 0,
-                'oppose_count' => 0,
-                'neutral_count' => 0
-            ],
-            'accuracy_score' => [
-                'verdict' => 'FAKTA|RAGU-RAGU|HOAX',
-                'confidence' => 0,
-                'reasoning' => 'Penjelasan mengapa diberikan verdict ini',
-                'recommendation' => 'Rekomendasi untuk user'
-            ]
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-
         return <<<PROMPT
-Anda adalah pakar pemeriksa fakta profesional. Analisis klaim berikut secara mendalam dan objektif dalam bahasa Indonesia.
+Anda adalah pakar pemeriksa fakta. Analisis klaim berikut secara objektif dan ringkas dalam bahasa Indonesia.
 
 KLAIM: "{$claim}"{$searchData}
 
-INSTRUKSI ANALISIS:
+Berikan analisis dalam format JSON dengan struktur berikut:
+{
+  "explanation": "Ringkasan singkat (1-2 kalimat) tentang klaim ini",
+  "detailed_analysis": "Analisis mendalam berdasarkan data pencarian (2-3 paragraf)"
+}
 
-1. ANALISIS SETIAP SUMBER:
-   Untuk setiap sumber, tentukan sikapnya terhadap klaim:
-   - SUPPORT: Sumber memberikan bukti kuat yang memverifikasi klaim
-   - OPPOSE: Sumber memberikan bukti yang bertentangan atau menolak klaim
-   - NEUTRAL: Sumber membahas topik terkait tapi tidak eksplisit mendukung/menolak
+INSTRUKSI:
+- Gunakan hanya informasi dari hasil pencarian di atas
+- Jika data tidak cukup, nyatakan bahwa bukti tidak memadai
+- Berikan penjelasan yang objektif dan berimbang
+- Jangan tambahkan teks di luar JSON
+- Pastikan JSON valid dan dapat di-parse
 
-2. KUANTIFIKASI DUKUNGAN:
-   Hitung jumlah sumber per kategori dan berikan persentase
-
-3. PENILAIAN AKURASI:
-   - FAKTA: ≥70% Mendukung, <20% Menyangkal, Confidence ≥80%
-   - RAGU-RAGU: 40%-60% Mendukung, atau >50% Netral, Confidence 50%-79%
-   - HOAX: <30% Mendukung, ≥50% Menyangkal, Confidence <50%
-
-4. CONFIDENCE SCORE: 0-100 berdasarkan konsistensi dan kualitas sumber
-
-FORMAT OUTPUT (JSON valid tanpa markdown):
-{$jsonTemplate}
-
-PENTING:
-- Gunakan hanya informasi dari DATA_PENDUKUNG
-- Berikan kutipan spesifik untuk setiap sumber
-- Jangan tambahkan penjelasan di luar JSON
-- Pastikan semua field terisi dengan data yang valid
+CONTOH FORMAT:
+{
+  "explanation": "Klaim ini benar berdasarkan bukti yang tersedia",
+  "detailed_analysis": "Berdasarkan hasil pencarian, klaim ini didukung oleh beberapa sumber terpercaya yang menyebutkan..."
+}
 PROMPT;
     }
 
