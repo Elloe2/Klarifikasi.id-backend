@@ -157,30 +157,25 @@ class GeminiService
         try {
             $cleanText = trim($text);
             
-            // Split text menjadi sentences untuk explanation dan analysis
-            $sentences = preg_split('/[.!?]+/', $cleanText, 2);
+            // Use full text as both explanation and analysis
+            $explanation = $cleanText;
+            $analysis = $cleanText;
             
-            $explanation = trim($sentences[0] ?? $cleanText);
-            $analysis = trim($sentences[1] ?? $cleanText);
-            
-            // Limit length
-            if (strlen($explanation) > 150) {
-                $explanation = substr($explanation, 0, 150) . '...';
-            }
-            if (strlen($analysis) > 500) {
-                $analysis = substr($analysis, 0, 500) . '...';
+            // Limit explanation length
+            if (strlen($explanation) > 200) {
+                $explanation = substr($explanation, 0, 200) . '...';
             }
             
             $response = [
                 'success' => true,
-                'explanation' => $explanation ?: 'Analisis diterima',
-                'detailed_analysis' => $analysis ?: $cleanText,
+                'explanation' => $explanation ?: 'Analisis diterima dari Gemini AI',
+                'detailed_analysis' => $analysis,
                 'claim' => (string) $claim,
             ];
             
             // Always add enhanced data
             $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
-                $explanation,
+                $cleanText,
                 $claim
             );
             $response['statistics'] = $this->generateDefaultStatistics();
