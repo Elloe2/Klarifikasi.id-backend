@@ -16,16 +16,18 @@ class GeminiService
 
     public function __construct()
     {
-        $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY')) ?? 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
+        // Try to get from env/config first
+        $this->apiKey = config('services.gemini.api_key') ?? env('GEMINI_API_KEY');
+        
+        // Fallback to hardcoded key if not configured
+        if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
+            $this->apiKey = 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
+            Log::warning('Using hardcoded Gemini API Key (env not configured)');
+        }
         
         // Log API key untuk debugging (hanya sebagian)
         $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
         Log::info('GeminiService initialized with API Key: ' . $maskedKey);
-        
-        // Validasi API key tanpa throw exception
-        if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
-            Log::error('Invalid or missing Gemini API Key: ' . $this->apiKey);
-        }
     }
 
     /**
@@ -44,12 +46,14 @@ class GeminiService
         }
         
         try {
-            Log::info('Sending request to Gemini API...');
+            Log::info('=== Gemini API Request Started ===');
             Log::info('Claim: ' . $claim);
             Log::info('Search Results Count: ' . count($searchResults));
+            Log::info('API Key (masked): ' . substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4));
+            Log::info('Base URL: ' . $this->baseUrl);
             
             $prompt = $this->buildPrompt($claim, $searchResults);
-            Log::info('Prompt built, length: ' . strlen($prompt));
+            Log::info('Prompt: ' . substr($prompt, 0, 100) . '...');
             
             $response = Http::timeout(30)
                 ->withHeaders([
@@ -71,11 +75,15 @@ class GeminiService
                 ]);
 
             Log::info('Gemini API Response Status: ' . $response->status());
-            Log::info('Gemini API Response Body (first 500 chars): ' . substr($response->body(), 0, 500));
+            Log::info('Gemini API Response Headers: ' . json_encode($response->headers()));
+            Log::info('Gemini API Response Body: ' . $response->body());
             
             if ($response->successful()) {
+                Log::info('Response successful!');
                 $data = $response->json();
+                Log::info('Parsed JSON: ' . json_encode($data));
                 $text = data_get($data, 'candidates.0.content.parts.0.text');
+                Log::info('Extracted text: ' . substr($text ?? '', 0, 200));
 
                 if (!is_string($text) || trim($text) === '') {
                     $blockReason = data_get($data, 'promptFeedback.blockReason');

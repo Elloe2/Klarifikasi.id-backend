@@ -35,15 +35,19 @@ Route::get('/test-google-cse', function () {
     }
 });
 
-// Test Gemini API connection
+// Test Gemini API configuration
 Route::get('/test-gemini', function () {
     try {
         $key = config('services.gemini.api_key', env('GEMINI_API_KEY'));
+        $hardcodedKey = 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
 
         return response()->json([
             'gemini_configured' => !empty($key),
+            'key_from_env' => !empty($key),
             'key_length' => strlen($key ?? ''),
             'key_preview' => substr($key ?? '', 0, 10) . '...' . substr($key ?? '', -4),
+            'hardcoded_key_available' => !empty($hardcodedKey),
+            'hardcoded_preview' => substr($hardcodedKey, 0, 10) . '...' . substr($hardcodedKey, -4),
         ]);
     } catch (\Exception $e) {
         return response()->json([
