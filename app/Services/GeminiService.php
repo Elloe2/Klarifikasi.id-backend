@@ -169,12 +169,15 @@ Anda adalah pakar pemeriksa fakta. Analisis klaim berikut secara objektif dan ri
 
 KLAIM: "{$claim}"{$searchData}
 
-INSTRUKSI:
+INSTRUKSI KETAT:
 - Gunakan hanya informasi dari DATA_PENDUKUNG di atas.
-- Jika data tidak cukup, nyatakan bahwa bukti tidak memadai.
-- Tentukan stance setiap sumber (SUPPORT, OPPOSE, atau NEUTRAL) terhadap klaim berdasarkan isinya.
-- Berikan reasoning yang jelas dan quote singkat (jika ada) untuk tiap sumber.
-- Jangan tambahkan penjelasan di luar struktur JSON.
+- Output HARUS berupa satu objek JSON dengan kunci persis: "summary", "analysis", "verdict_explanation", "sources_breakdown".
+- Nilai "summary", "analysis", dan "verdict_explanation" wajib berupa string tunggal, bukan objek atau daftar.
+- "sources_breakdown" adalah array berisi objek dengan kunci: "source_reference", "stance", "reasoning", "quote" (boleh null bila tidak ada kutipan).
+- Nilai "stance" hanya boleh salah satu dari: "SUPPORT", "OPPOSE", "NEUTRAL". Jika bukti tidak cukup, gunakan "NEUTRAL" dan jelaskan kekurangan bukti.
+- Jika semua sumber netral, tetap berikan reasoning yang menjelaskan mengapa bukti tidak mendukung klaim.
+- Jangan menambahkan kunci lain, komentar, markdown, atau teks di luar JSON. Jangan gunakan pembungkus ```.
+- Gunakan karakter escape \" untuk tanda kutip ganda di dalam nilai string.
 
 FORMAT OUTPUT (JSON valid tanpa markdown):
 {$jsonTemplate}
