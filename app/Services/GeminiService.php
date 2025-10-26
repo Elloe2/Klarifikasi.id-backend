@@ -200,14 +200,21 @@ PROMPT;
             if ($jsonStart !== false && $jsonEnd !== false) {
                 $jsonString = substr($cleanText, $jsonStart, $jsonEnd - $jsonStart + 1);
                 Log::debug('Extracted JSON length: ' . strlen($jsonString));
+
+                $sanitizedJson = $this->sanitizeJsonString($jsonString);
+                if ($sanitizedJson !== $jsonString) {
+                    Log::debug('Sanitized JSON string applied');
+                }
                 
-                $data = json_decode($jsonString, true);
+                $data = json_decode($sanitizedJson, true);
                 
                 if ($data) {
                     Log::debug('Successfully parsed JSON response');
                     return $this->normalizeAnalysisData($data, $claim, $searchResults);
                 } else {
-                    Log::warning('JSON parsed but missing explanation field');
+                    Log::warning('Failed to decode Gemini JSON', [
+                        'error' => json_last_error_msg(),
+                    ]);
                 }
             } else {
                 Log::warning('No JSON found in response');
@@ -239,6 +246,17 @@ PROMPT;
         $text = preg_replace('/\s+/', ' ', $text);
         
         return trim($text);
+    }
+
+    private function sanitizeJsonString(string $json): string
+    {
+        // Hapus tanda kutip ganda dalam key seperti ""summary"" menjadi "summary"
+        $json = preg_replace('/""([^"]+)""\s*:/', '"$1":', $json);
+
+        // Hapus space sebelum titik dua pada key
+        $json = preg_replace('/"([^"]+)"\s+:/', '"$1":', $json);
+
+        return trim($json);
     }
 
     /**
