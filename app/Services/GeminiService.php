@@ -6,28 +6,25 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Service untuk berkomunikasi dengan penyedia LLM eksternal (Chutes DeepSeek)
+ * Service untuk berkomunikasi dengan Google Gemini AI
+ * Menggunakan HTTP client untuk mengakses Gemini API
  */
 class GeminiService
 {
     private string $apiKey;
-    private string $baseUrl;
-    private string $model;
+    private string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
     public function __construct()
     {
-        $config = config('services.deepseek', []);
-        $this->apiKey = $config['api_key'] ?? env('CHUTES_API_TOKEN') ?? '';
-        $this->baseUrl = $config['base_url'] ?? env('CHUTES_BASE_URL', 'https://llm.chutes.ai/v1/chat/completions');
-        $this->model = $config['model'] ?? env('DEEPSEEK_MODEL', 'deepseek-ai/DeepSeek-R1');
+        $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY')) ?? 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
         
         // Log API key untuk debugging (hanya sebagian)
         $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
-        Log::debug('LLM service initialized with API Key: ' . $maskedKey);
+        Log::debug('GeminiService initialized with API Key: ' . $maskedKey);
         
         // Validasi API key tanpa throw exception
         if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
-            Log::error('Invalid or missing LLM API Key configuration');
+            Log::error('Invalid or missing Gemini API Key: ' . $this->apiKey);
         }
     }
 
@@ -38,95 +35,96 @@ class GeminiService
     {
         // Log API key status
         $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
-        Log::debug('LLM analyzeClaim called with API Key: ' . $maskedKey);
+        Log::debug('GeminiService analyzeClaim called with API Key: ' . $maskedKey);
         
         // Check API key validity
         if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
-            Log::warning('LLM API Key not configured properly, using fallback');
+            Log::warning('Gemini API Key not configured properly, using fallback');
             return $this->getFallbackWithSearchData($claim, $searchResults);
         }
         
         try {
-            Log::debug('Sending request to LLM API (Chutes DeepSeek)...');
+            Log::debug('Sending request to Gemini API...');
             
             $response = Http::timeout(30)
                 ->withHeaders([
                     'Content-Type' => 'application/json',
-                    'Authorization' => 'Bearer ' . $this->apiKey,
+                    'X-goog-api-key' => $this->apiKey,
                 ])
                 ->post($this->baseUrl, [
-                    'model' => $this->model,
-                    'messages' => [
+                    'contents' => [
                         [
-                            'role' => 'system',
-                            'content' => $this->buildSystemInstruction(),
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => $this->buildPrompt($claim, $searchResults),
-                        ],
+                            'parts' => [
+                                ['text' => $this->buildPrompt($claim, $searchResults)]
+                            ]
+                        ]
                     ],
-                    'stream' => false,
-                    'max_tokens' => 1024,
-                    'temperature' => 0.1,
+                    'generationConfig' => [
+                        'temperature' => 0.1,
+                        'topK' => 1,
+                        'topP' => 1,
+                        'maxOutputTokens' => 1024,
+                    ],
+                    'safetySettings' => [
+                        [
+                            'category' => 'HARM_CATEGORY_HARASSMENT',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_HATE_SPEECH',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ]
+                    ]
                 ]);
 
-            Log::debug('LLM API Response Status: ' . $response->status());
+            Log::debug('Gemini API Response Status: ' . $response->status());
             
             if ($response->successful()) {
                 $data = $response->json();
-                $text = data_get($data, 'choices.0.message.content');
+                $text = data_get($data, 'candidates.0.content.parts.0.text');
 
                 if (!is_string($text) || trim($text) === '') {
-                    Log::error('LLM API returned empty message.', [
-                        'response' => $data,
+                    $blockReason = data_get($data, 'promptFeedback.blockReason');
+                    $safetyRatings = data_get($data, 'promptFeedback.safetyRatings');
+                    Log::error('Gemini API returned no analysable candidates.', [
+                        'blockReason' => $blockReason,
+                        'safetyRatings' => $safetyRatings,
                     ]);
 
                     $fallback = $this->getFallbackWithSearchData($claim, $searchResults);
+                    $message = $blockReason ? 'Analisis diblokir oleh Gemini AI.' : 'Gemini AI tidak mengembalikan analisis.';
                     $fallback['success'] = false;
-                    $fallback['explanation'] = 'LLM tidak memberikan analisis terstruktur.';
-                    $fallback['sources'] = 'Chutes DeepSeek';
-                    $fallback['error'] = 'LLM tidak mengembalikan analisis.';
+                    $fallback['explanation'] = $message;
+                    $fallback['sources'] = 'Gemini AI';
+                    $fallback['error'] = $blockReason
+                        ? 'Gemini AI memblokir analisis: ' . $blockReason
+                        : 'Gemini AI tidak mengembalikan analisis.';
                     return $fallback;
                 }
 
-                Log::debug('LLM API Success - Response received');
+                Log::debug('Gemini API Success - Response received');
                 return $this->parseResponse((string) $text, $claim, $searchResults);
             } else {
-                Log::error('LLM API Error Status: ' . $response->status());
-                Log::error('LLM API Error Body: ' . $response->body());
+                Log::error('Gemini API Error Status: ' . $response->status());
+                Log::error('Gemini API Error Body: ' . $response->body());
                 
                 // Return fallback dengan informasi dari Google CSE
                 return $this->getFallbackWithSearchData($claim, $searchResults);
             }
 
         } catch (\Exception $e) {
-            Log::error('LLM Service Exception: ' . $e->getMessage());
-            Log::error('LLM Service Exception Trace: ' . $e->getTraceAsString());
+            Log::error('Gemini Service Exception: ' . $e->getMessage());
+            Log::error('Gemini Service Exception Trace: ' . $e->getTraceAsString());
             return $this->getFallbackWithSearchData($claim, $searchResults);
         }
-    }
-
-    private function buildSystemInstruction(): string
-    {
-        return <<<SYS
-Anda adalah pakar pemeriksa fakta. Selalu balas dalam format JSON valid dengan struktur:
-{
-  "summary": string,
-  "analysis": string,
-  "verdict_explanation": string,
-  "sources_breakdown": [
-    {
-      "source_reference": string,
-      "stance": "SUPPORT" atau "NOT_SUPPORT",
-      "reasoning": string,
-      "quote": string atau null
-    }
-  ]
-}
-Jangan tambahkan teks lain, markdown, atau komentar di luar objek JSON.
-Jika bukti tidak memadai, gunakan stance "NOT_SUPPORT" dan jelaskan alasannya.
-SYS;
     }
 
     /**
@@ -234,7 +232,7 @@ PROMPT;
             return $this->parseTextResponse($cleanText, $claim, $searchResults);
 
         } catch (\Exception $e) {
-            Log::error('Error parsing LLM response: ' . $e->getMessage());
+            Log::error('Error parsing Gemini response: ' . $e->getMessage());
             return $this->getFallbackResponse($claim, $searchResults);
         }
     }
@@ -458,7 +456,7 @@ PROMPT;
             'analysis' => 'Tidak ada analisis tersedia',
             'verdict_explanation' => 'Analisis AI tidak tersedia, gunakan sumber manual.',
             'sources_breakdown' => [],
-            'error' => 'LLM API tidak tersedia',
+            'error' => 'Gemini API tidak tersedia',
         ], $claim, $searchResults, false);
     }
     private function getFallbackWithSearchData(string $claim, array $searchResults = []): array
@@ -520,7 +518,7 @@ PROMPT;
                     $aggregates['verdict_label'] = 'HOAX';
                     $aggregates['verdict_score'] = 0.0;
                     if ($verdictExplanation === '') {
-                        $verdictExplanation = 'LLM menyatakan klaim ini tidak didukung bukti sehingga diklasifikasikan sebagai hoax.';
+                        $verdictExplanation = 'Gemini menyatakan klaim ini tidak didukung bukti sehingga diklasifikasikan sebagai hoax.';
                     }
                     break;
                 }
