@@ -115,96 +115,9 @@ Route::get('/test-gemini-request', function () {
     }
 });
 
-// Test endpoint untuk debug
-Route::get('/test-search', function () {
-    try {
-        return response()->json([
-            'status' => 'ok',
-            'message' => 'Search endpoint accessible',
-            'timestamp' => now(),
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-});
-
-// Simple search test tanpa services
-Route::post('/search-simple', function (Illuminate\Http\Request $request) {
-    return response()->json([
-        'query' => $request->input('query'),
-        'results' => [],
-        'gemini_analysis' => [
-            'success' => true,
-            'explanation' => 'Test response',
-            'detailed_analysis' => 'This is a test',
-            'claim' => $request->input('query'),
-            'accuracy_score' => [
-                'verdict' => 'RAGU-RAGU',
-                'confidence' => 50,
-                'reasoning' => 'Test',
-                'recommendation' => 'Test'
-            ],
-            'statistics' => [
-                'total_sources' => 0,
-                'support_count' => 0,
-                'oppose_count' => 0,
-                'neutral_count' => 0
-            ],
-            'source_analysis' => []
-        ]
-    ]);
-});
-
-// Route pencarian dengan autentikasi opsional - TEMPORARILY DISABLED FOR DEBUG
-// Route::post('/search', [SearchController::class, 'search'])
-//     ->middleware('throttle:10,1');
-
-// TEMPORARY: Simple search endpoint untuk bypass controller - WITH TEST DATA
-Route::post('/search', function (Illuminate\Http\Request $request) {
-    \Log::info('Search endpoint called', ['query' => $request->input('query')]);
-    
-    return response()->json([
-        'query' => $request->input('query', ''),
-        'results' => [
-            [
-                'title' => 'Test Result 1',
-                'snippet' => 'This is a test result snippet',
-                'link' => 'https://example.com/1',
-                'displayLink' => 'example.com',
-                'formattedUrl' => 'https://example.com/1',
-            ],
-            [
-                'title' => 'Test Result 2',
-                'snippet' => 'Another test result',
-                'link' => 'https://example.com/2',
-                'displayLink' => 'example.com',
-                'formattedUrl' => 'https://example.com/2',
-            ]
-        ],
-        'gemini_analysis' => [
-            'success' => true,
-            'explanation' => 'TEST: Backend berfungsi dengan baik!',
-            'detailed_analysis' => 'Ini adalah response test dari backend.',
-            'claim' => $request->input('query', ''),
-            'accuracy_score' => [
-                'verdict' => 'FAKTA',
-                'confidence' => 85,
-                'reasoning' => 'Test response',
-                'recommendation' => 'Backend working'
-            ],
-            'statistics' => [
-                'total_sources' => 2,
-                'support_count' => 2,
-                'oppose_count' => 0,
-                'neutral_count' => 0
-            ],
-            'source_analysis' => []
-        ]
-    ]);
-});
+// Route pencarian dengan autentikasi opsional
+Route::post('/search', [SearchController::class, 'search'])
+    ->middleware('throttle:10,1');
 
 // Route untuk mendapatkan hasil pencarian berdasarkan query
 Route::get('/search/{query}', [SearchController::class, 'searchByQuery'])

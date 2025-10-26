@@ -29,76 +29,33 @@ class SearchController extends Controller
      */
     public function search(Request $request): JsonResponse
     {
-        // Wrap everything in try-catch untuk prevent 500 errors
         try {
-            try {
-                $validated = $request->validate([
-                    'query' => ['required', 'string', 'min:3', 'max:255'],
-                ]);
-            } catch (ValidationException $exception) {
-                return response()->json([
-                    'message' => 'Invalid query.',
-                    'errors' => $exception->errors(),
-                ], 422);
-            }
-
-            try {
-                $items = $this->searchService->search($validated['query']);
-            } catch (RuntimeException $exception) {
-                return response()->json([
-                    'message' => $exception->getMessage(),
-                ], 502);
-            }
-
-            // Analisis klaim dengan Gemini AI menggunakan hasil pencarian Google CSE
-            try {
-                $geminiAnalysis = $this->geminiService->analyzeClaim($validated['query'], $items);
-            } catch (\Exception $exception) {
-                // If Gemini fails, return results with fallback analysis
-                $geminiAnalysis = [
-                    'success' => true,
-                    'explanation' => 'Gemini AI tidak tersedia saat ini',
-                    'detailed_analysis' => 'Silakan periksa hasil pencarian di bawah untuk informasi lebih lanjut.',
-                    'claim' => $validated['query'],
-                    'error' => $exception->getMessage(),
-                    'accuracy_score' => [
-                        'verdict' => 'RAGU-RAGU',
-                        'confidence' => 50,
-                        'reasoning' => 'Analisis AI tidak tersedia',
-                        'recommendation' => 'Periksa sumber-sumber di bawah secara manual'
-                    ],
-                    'statistics' => [
-                        'total_sources' => 0,
-                        'support_count' => 0,
-                        'oppose_count' => 0,
-                        'neutral_count' => 0
-                    ],
-                    'source_analysis' => []
-                ];
-            }
-
-            return response()->json([
-                'query' => $validated['query'],
-                'results' => $items,
-                'gemini_analysis' => $geminiAnalysis,
+            $validated = $request->validate([
+                'query' => ['required', 'string', 'min:3', 'max:255'],
             ]);
-            
-        } catch (\Exception $e) {
-            // Catch-all untuk any unexpected errors
+        } catch (ValidationException $exception) {
             return response()->json([
-                'message' => 'Internal server error',
-                'error' => $e->getMessage(),
-                'query' => $request->input('query', ''),
-                'results' => [],
-                'gemini_analysis' => [
-                    'success' => false,
-                    'explanation' => 'Terjadi kesalahan pada server',
-                    'detailed_analysis' => $e->getMessage(),
-                    'claim' => $request->input('query', ''),
-                    'error' => $e->getMessage(),
-                ]
-            ], 200); // Return 200 to prevent frontend error
+                'message' => 'Invalid query.',
+                'errors' => $exception->errors(),
+            ], 422);
         }
+
+        try {
+            $items = $this->searchService->search($validated['query']);
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 502);
+        }
+
+        // Analisis klaim dengan Gemini AI menggunakan hasil pencarian Google CSE
+        $geminiAnalysis = $this->geminiService->analyzeClaim($validated['query'], $items);
+
+        return response()->json([
+            'query' => $validated['query'],
+            'results' => $items,
+            'gemini_analysis' => $geminiAnalysis,
+        ]);
     }
 
 
