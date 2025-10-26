@@ -43,88 +43,136 @@ class GeminiService
             return $this->getFallbackWithSearchData($claim, $searchResults);
         }
         
-        try {
-            Log::debug('Sending request to Gemini API...');
-            
-            $response = Http::timeout(30)
-                ->withHeaders([
-                    'Content-Type' => 'application/json',
-                    'X-goog-api-key' => $this->apiKey,
-                ])
-                ->post($this->baseUrl, [
-                    'contents' => [
-                        [
-                            'parts' => [
-                                ['text' => $this->buildPrompt($claim, $searchResults)]
+        $prompt = $this->buildPrompt($claim, $searchResults);
+        $attempt = 0;
+        $maxAttempts = 3;
+        $lastError = null;
+
+        while ($attempt < $maxAttempts) {
+            $attempt++;
+            try {
+                Log::debug('Sending request to Gemini API...', ['attempt' => $attempt]);
+
+                $response = Http::timeout(30)
+                    ->withHeaders([
+                        'Content-Type' => 'application/json',
+                        'X-goog-api-key' => $this->apiKey,
+                    ])
+                    ->post($this->baseUrl, [
+                        'contents' => [
+                            [
+                                'parts' => [
+                                    ['text' => $prompt]
+                                ]
+                            ]
+                        ],
+                        'generationConfig' => [
+                            'temperature' => 0.1,
+                            'topK' => 1,
+                            'topP' => 1,
+                            'maxOutputTokens' => 1024,
+                            'responseMimeType' => 'application/json',
+                            'responseSchema' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'summary' => ['type' => 'string'],
+                                    'analysis' => ['type' => 'string'],
+                                    'verdict_explanation' => ['type' => 'string'],
+                                    'sources_breakdown' => [
+                                        'type' => 'array',
+                                        'items' => [
+                                            'type' => 'object',
+                                            'properties' => [
+                                                'source_reference' => ['type' => 'string'],
+                                                'stance' => [
+                                                    'type' => 'string',
+                                                    'enum' => ['SUPPORT', 'NOT_SUPPORT'],
+                                                ],
+                                                'reasoning' => ['type' => 'string'],
+                                                'quote' => [
+                                                    'type' => ['string', 'null'],
+                                                ],
+                                            ],
+                                            'required' => ['source_reference', 'stance', 'reasoning'],
+                                        ],
+                                    ],
+                                ],
+                                'required' => ['summary', 'analysis', 'verdict_explanation', 'sources_breakdown'],
+                            ],
+                        ],
+                        'safetySettings' => [
+                            [
+                                'category' => 'HARM_CATEGORY_HARASSMENT',
+                                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                            ],
+                            [
+                                'category' => 'HARM_CATEGORY_HATE_SPEECH',
+                                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                            ],
+                            [
+                                'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                            ],
+                            [
+                                'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
                             ]
                         ]
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 0.1,
-                        'topK' => 1,
-                        'topP' => 1,
-                        'maxOutputTokens' => 1024,
-                    ],
-                    'safetySettings' => [
-                        [
-                            'category' => 'HARM_CATEGORY_HARASSMENT',
-                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                        ],
-                        [
-                            'category' => 'HARM_CATEGORY_HATE_SPEECH',
-                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                        ],
-                        [
-                            'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                        ],
-                        [
-                            'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT',
-                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                        ]
-                    ]
-                ]);
-
-            Log::debug('Gemini API Response Status: ' . $response->status());
-            
-            if ($response->successful()) {
-                $data = $response->json();
-                $text = data_get($data, 'candidates.0.content.parts.0.text');
-
-                if (!is_string($text) || trim($text) === '') {
-                    $blockReason = data_get($data, 'promptFeedback.blockReason');
-                    $safetyRatings = data_get($data, 'promptFeedback.safetyRatings');
-                    Log::error('Gemini API returned no analysable candidates.', [
-                        'blockReason' => $blockReason,
-                        'safetyRatings' => $safetyRatings,
                     ]);
 
-                    $fallback = $this->getFallbackWithSearchData($claim, $searchResults);
-                    $message = $blockReason ? 'Analisis diblokir oleh Gemini AI.' : 'Gemini AI tidak mengembalikan analisis.';
-                    $fallback['success'] = false;
-                    $fallback['explanation'] = $message;
-                    $fallback['sources'] = 'Gemini AI';
-                    $fallback['error'] = $blockReason
-                        ? 'Gemini AI memblokir analisis: ' . $blockReason
-                        : 'Gemini AI tidak mengembalikan analisis.';
-                    return $fallback;
-                }
+                Log::debug('Gemini API Response Status: ' . $response->status(), ['attempt' => $attempt]);
 
-                Log::debug('Gemini API Success - Response received');
-                return $this->parseResponse((string) $text, $claim, $searchResults);
-            } else {
-                Log::error('Gemini API Error Status: ' . $response->status());
-                Log::error('Gemini API Error Body: ' . $response->body());
-                
-                // Return fallback dengan informasi dari Google CSE
-                return $this->getFallbackWithSearchData($claim, $searchResults);
+                if ($response->successful()) {
+                    $data = $response->json();
+                    $text = data_get($data, 'candidates.0.content.parts.0.text');
+
+                    if (!is_string($text) || trim($text) === '') {
+                        $blockReason = data_get($data, 'promptFeedback.blockReason');
+                        $safetyRatings = data_get($data, 'promptFeedback.safetyRatings');
+                        Log::warning('Gemini API returned no analysable candidates.', [
+                            'attempt' => $attempt,
+                            'blockReason' => $blockReason,
+                            'safetyRatings' => $safetyRatings,
+                        ]);
+
+                        if ($blockReason) {
+                            break; // jika diblokir, retry tidak akan membantu
+                        }
+
+                        $lastError = 'Gemini mengembalikan kandidat kosong';
+                    } else {
+                        Log::debug('Gemini API Success - Response received', ['attempt' => $attempt]);
+                        return $this->parseResponse((string) $text, $claim, $searchResults);
+                    }
+                } else {
+                    Log::warning('Gemini API Error', [
+                        'attempt' => $attempt,
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                    ]);
+                    $lastError = 'status:' . $response->status();
+                }
+            } catch (\Exception $e) {
+                $lastError = $e->getMessage();
+                Log::warning('Gemini request failed', [
+                    'attempt' => $attempt,
+                    'error' => $e->getMessage(),
+                ]);
             }
 
-        } catch (\Exception $e) {
-            Log::error('Gemini Service Exception: ' . $e->getMessage());
-            Log::error('Gemini Service Exception Trace: ' . $e->getTraceAsString());
-            return $this->getFallbackWithSearchData($claim, $searchResults);
+            // Siapkan prompt retry yang lebih ketat jika belum berhasil
+            if ($attempt < $maxAttempts) {
+                $prompt = $this->buildRetryPrompt($claim, $searchResults, $attempt, $prompt);
+                usleep(200000); // tunggu 200ms sebelum retry
+            }
         }
+
+        Log::error('Gemini requests exhausted without structured response', [
+            'attempts' => $maxAttempts,
+            'last_error' => $lastError,
+        ]);
+
+        return $this->getFallbackWithSearchData($claim, $searchResults);
     }
 
     /**
@@ -182,6 +230,19 @@ INSTRUKSI KETAT:
 FORMAT OUTPUT (JSON valid tanpa markdown):
 {$jsonTemplate}
 PROMPT;
+    }
+
+    private function buildRetryPrompt(string $claim, array $searchResults, int $attempt, string $previousPrompt): string
+    {
+        $additional = "";
+
+        if ($attempt === 1) {
+            $additional = "\n\nRETRY INSTRUKSI: Keluarkan HANYA JSON valid persis sesuai template. Jangan tambahkan kalimat lain.";
+        } elseif ($attempt === 2) {
+            $additional = "\n\nRETRY TERAKHIR: Pastikan output berupa JSON valid dengan kunci summary, analysis, verdict_explanation, sources_breakdown. Jika informasi tidak ada, isi string kosong. Jangan ubah struktur schema.";
+        }
+
+        return $previousPrompt . $additional;
     }
 
     /**
