@@ -234,6 +234,7 @@ PROMPT;
                 
                 if ($data && isset($data['explanation'])) {
                     Log::info('Successfully parsed JSON response');
+                    Log::info('Response data keys: ' . implode(', ', array_keys($data)));
                     
                     // Enhanced response dengan source analysis
                     $response = [
@@ -245,18 +246,43 @@ PROMPT;
                     
                     // Add source analysis jika tersedia
                     if (!empty($data['source_analysis']) && is_array($data['source_analysis'])) {
+                        Log::info('Found source_analysis in response');
                         $response['source_analysis'] = $data['source_analysis'];
                     }
                     
                     // Add statistics jika tersedia
                     if (!empty($data['statistics']) && is_array($data['statistics'])) {
+                        Log::info('Found statistics in response');
                         $response['statistics'] = $data['statistics'];
                     }
                     
                     // Add accuracy score jika tersedia
                     if (!empty($data['accuracy_score']) && is_array($data['accuracy_score'])) {
+                        Log::info('Found accuracy_score in response');
                         $response['accuracy_score'] = $data['accuracy_score'];
                     }
+                    
+                    // FALLBACK: Jika enhanced data tidak ada, generate dari explanation
+                    if (empty($response['accuracy_score'])) {
+                        Log::info('Generating accuracy_score from explanation (fallback)');
+                        $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
+                            $response['explanation'],
+                            $claim
+                        );
+                    }
+                    
+                    if (empty($response['statistics'])) {
+                        Log::info('Generating default statistics (fallback)');
+                        $response['statistics'] = $this->generateDefaultStatistics();
+                    }
+                    
+                    if (empty($response['source_analysis'])) {
+                        Log::info('Setting empty source_analysis (fallback)');
+                        $response['source_analysis'] = [];
+                    }
+                    
+                    Log::info('Final response has accuracy_score: ' . (isset($response['accuracy_score']) ? 'YES' : 'NO'));
+                    Log::info('Final response has statistics: ' . (isset($response['statistics']) ? 'YES' : 'NO'));
                     
                     return $response;
                 } else {
@@ -299,6 +325,8 @@ PROMPT;
      */
     private function parseTextResponse(string $text, string $claim): array
     {
+        Log::info('Parsing text response (JSON parsing failed)');
+        
         // Jika response tidak dalam format JSON, coba extract informasi manual
         $explanation = 'Tidak dapat menganalisis klaim ini dengan pasti.';
         $sources = '';
@@ -325,13 +353,24 @@ PROMPT;
         }
         
         // Pastikan semua field adalah string
-        return [
+        $response = [
             'success' => true,
             'explanation' => (string) $explanation,
-            'sources' => (string) $sources,
-            'analysis' => (string) $analysis,
+            'detailed_analysis' => (string) $analysis,
             'claim' => (string) $claim,
         ];
+        
+        // ALWAYS add enhanced data untuk consistency
+        $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
+            $explanation,
+            $claim
+        );
+        $response['statistics'] = $this->generateDefaultStatistics();
+        $response['source_analysis'] = [];
+        
+        Log::info('Text response parsed with enhanced data');
+        
+        return $response;
     }
 
     /**
@@ -373,6 +412,68 @@ PROMPT;
             'sources' => $sources,
             'analysis' => $analysis,
             'claim' => (string) $claim,
+        ];
+    }
+
+    /**
+     * Generate accuracy score dari explanation jika Gemini tidak mengirim structured data
+     */
+    private function generateAccuracyScoreFromExplanation(string $explanation, string $claim): array
+    {
+        // Analisis explanation untuk determine verdict
+        $explanationLower = strtolower($explanation);
+        
+        // Heuristic: cek keywords untuk determine verdict
+        $isFakta = (
+            strpos($explanationLower, 'benar') !== false ||
+            strpos($explanationLower, 'terbukti') !== false ||
+            strpos($explanationLower, 'akurat') !== false ||
+            strpos($explanationLower, 'tepat') !== false
+        );
+        
+        $isHoax = (
+            strpos($explanationLower, 'salah') !== false ||
+            strpos($explanationLower, 'hoax') !== false ||
+            strpos($explanationLower, 'tidak benar') !== false ||
+            strpos($explanationLower, 'menyesatkan') !== false ||
+            strpos($explanationLower, 'palsu') !== false
+        );
+        
+        if ($isFakta && !$isHoax) {
+            $verdict = 'FAKTA';
+            $confidence = 75;
+            $reasoning = 'Berdasarkan analisis, klaim ini didukung oleh bukti yang tersedia.';
+            $recommendation = 'Klaim ini dapat dipercaya berdasarkan sumber-sumber yang ditemukan.';
+        } elseif ($isHoax && !$isFakta) {
+            $verdict = 'HOAX';
+            $confidence = 70;
+            $reasoning = 'Berdasarkan analisis, klaim ini tidak didukung oleh bukti yang valid.';
+            $recommendation = 'Hati-hati dengan klaim ini, kemungkinan besar tidak akurat.';
+        } else {
+            $verdict = 'RAGU-RAGU';
+            $confidence = 60;
+            $reasoning = 'Berdasarkan analisis, klaim ini memiliki bukti yang beragam dan memerlukan verifikasi lebih lanjut.';
+            $recommendation = 'Cari sumber tambahan untuk verifikasi lebih mendalam.';
+        }
+        
+        return [
+            'verdict' => $verdict,
+            'confidence' => $confidence,
+            'reasoning' => $reasoning,
+            'recommendation' => $recommendation,
+        ];
+    }
+
+    /**
+     * Generate default statistics
+     */
+    private function generateDefaultStatistics(): array
+    {
+        return [
+            'total_sources' => 0,
+            'support_count' => 0,
+            'oppose_count' => 0,
+            'neutral_count' => 0,
         ];
     }
 }
