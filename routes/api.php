@@ -35,6 +35,23 @@ Route::get('/test-google-cse', function () {
     }
 });
 
+// Test Gemini API connection
+Route::get('/test-gemini', function () {
+    try {
+        $key = config('services.gemini.api_key', env('GEMINI_API_KEY'));
+
+        return response()->json([
+            'gemini_configured' => !empty($key),
+            'key_length' => strlen($key ?? ''),
+            'key_preview' => substr($key ?? '', 0, 10) . '...' . substr($key ?? '', -4),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
 // Route pencarian dengan autentikasi opsional
 Route::post('/search', [SearchController::class, 'search'])
     ->middleware('throttle:10,1');

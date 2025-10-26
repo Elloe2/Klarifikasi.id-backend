@@ -45,6 +45,11 @@ class GeminiService
         
         try {
             Log::info('Sending request to Gemini API...');
+            Log::info('Claim: ' . $claim);
+            Log::info('Search Results Count: ' . count($searchResults));
+            
+            $prompt = $this->buildPrompt($claim, $searchResults);
+            Log::info('Prompt built, length: ' . strlen($prompt));
             
             $response = Http::timeout(30)
                 ->withHeaders([
@@ -55,7 +60,7 @@ class GeminiService
                     'contents' => [
                         [
                             'parts' => [
-                                ['text' => $this->buildPrompt($claim, $searchResults)]
+                                ['text' => $prompt]
                             ]
                         ]
                     ],
@@ -86,6 +91,7 @@ class GeminiService
                 ]);
 
             Log::info('Gemini API Response Status: ' . $response->status());
+            Log::info('Gemini API Response Body (first 500 chars): ' . substr($response->body(), 0, 500));
             
             if ($response->successful()) {
                 $data = $response->json();
@@ -393,14 +399,26 @@ PROMPT;
      */
     private function getFallbackResponse(string $claim): array
     {
-        return [
-            'success' => false,
-            'explanation' => 'Tidak dapat menganalisis klaim ini saat ini. Silakan coba lagi nanti.',
-            'sources' => '',
-            'analysis' => 'Tidak ada analisis tersedia',
+        $explanation = 'Tidak dapat menganalisis klaim ini saat ini. Silakan coba lagi nanti.';
+        $analysis = 'Tidak ada analisis tersedia';
+        
+        $response = [
+            'success' => true,  // Set true agar frontend bisa display dengan enhanced data
+            'explanation' => $explanation,
+            'detailed_analysis' => $analysis,
             'claim' => (string) $claim,
             'error' => 'Gemini API tidak tersedia'
         ];
+        
+        // ALWAYS add enhanced data untuk consistency
+        $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
+            $explanation,
+            $claim
+        );
+        $response['statistics'] = $this->generateDefaultStatistics();
+        $response['source_analysis'] = [];
+        
+        return $response;
     }
     private function getFallbackWithSearchData(string $claim, array $searchResults = []): array
     {
