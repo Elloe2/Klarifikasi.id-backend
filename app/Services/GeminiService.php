@@ -65,28 +65,8 @@ class GeminiService
                         ]
                     ],
                     'generationConfig' => [
-                        'temperature' => 0.1,
-                        'topK' => 1,
-                        'topP' => 1,
-                        'maxOutputTokens' => 1024,
-                    ],
-                    'safetySettings' => [
-                        [
-                            'category' => 'HARM_CATEGORY_HARASSMENT',
-                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                        ],
-                        [
-                            'category' => 'HARM_CATEGORY_HATE_SPEECH',
-                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                        ],
-                        [
-                            'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                        ],
-                        [
-                            'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT',
-                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                        ]
+                        'temperature' => 0.7,
+                        'maxOutputTokens' => 500,
                     ]
                 ]);
 
