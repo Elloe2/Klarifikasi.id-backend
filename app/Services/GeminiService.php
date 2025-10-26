@@ -64,34 +64,6 @@ class GeminiService
                         'topK' => 1,
                         'topP' => 1,
                         'maxOutputTokens' => 1024,
-                        'responseMimeType' => 'application/json',
-                        'responseSchema' => [
-                            'type' => 'object',
-                            'additionalProperties' => false,
-                            'properties' => [
-                                'summary' => ['type' => 'string'],
-                                'analysis' => ['type' => 'string'],
-                                'verdict_explanation' => ['type' => 'string'],
-                                'sources_breakdown' => [
-                                    'type' => 'array',
-                                    'items' => [
-                                        'type' => 'object',
-                                        'additionalProperties' => false,
-                                        'properties' => [
-                                            'source_reference' => ['type' => 'string'],
-                                            'stance' => [
-                                                'type' => 'string',
-                                                'enum' => ['SUPPORT', 'NOT_SUPPORT'],
-                                            ],
-                                            'reasoning' => ['type' => 'string'],
-                                            'quote' => ['type' => ['string', 'null']],
-                                        ],
-                                        'required' => ['source_reference', 'stance', 'reasoning'],
-                                    ],
-                                ],
-                            ],
-                            'required' => ['summary', 'analysis', 'verdict_explanation', 'sources_breakdown'],
-                        ],
                     ],
                     'safetySettings' => [
                         [
