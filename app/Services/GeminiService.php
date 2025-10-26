@@ -46,14 +46,9 @@ class GeminiService
         }
         
         try {
-            Log::info('=== Gemini API Request Started ===');
-            Log::info('Claim: ' . $claim);
-            Log::info('Search Results Count: ' . count($searchResults));
-            Log::info('API Key (masked): ' . substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4));
-            Log::info('Base URL: ' . $this->baseUrl);
+            Log::info('Gemini API Request: ' . $claim);
             
             $prompt = $this->buildPrompt($claim, $searchResults);
-            Log::info('Prompt: ' . substr($prompt, 0, 100) . '...');
             
             $response = Http::timeout(30)
                 ->withHeaders([
@@ -74,16 +69,15 @@ class GeminiService
                     ]
                 ]);
 
-            Log::info('Gemini API Response Status: ' . $response->status());
-            Log::info('Gemini API Response Headers: ' . json_encode($response->headers()));
-            Log::info('Gemini API Response Body: ' . $response->body());
-            
             if ($response->successful()) {
-                Log::info('Response successful!');
-                $data = $response->json();
-                Log::info('Parsed JSON: ' . json_encode($data));
-                $text = data_get($data, 'candidates.0.content.parts.0.text');
-                Log::info('Extracted text: ' . substr($text ?? '', 0, 200));
+                try {
+                    $data = $response->json();
+                    $text = data_get($data, 'candidates.0.content.parts.0.text');
+                    Log::info('Gemini response received successfully');
+                } catch (\Exception $parseError) {
+                    Log::error('JSON parse error: ' . $parseError->getMessage());
+                    throw $parseError;
+                }
 
                 if (!is_string($text) || trim($text) === '') {
                     $blockReason = data_get($data, 'promptFeedback.blockReason');
@@ -124,18 +118,24 @@ class GeminiService
 
         } catch (\Exception $e) {
             Log::error('Gemini Service Exception: ' . $e->getMessage());
+            Log::error('Exception trace: ' . $e->getTraceAsString());
             
             // Return error response dengan pesan jelas
-            return [
-                'success' => true,
-                'explanation' => 'Gemini AI tidak terkoneksi',
-                'detailed_analysis' => 'Terjadi kesalahan saat menghubungi Gemini AI: ' . $e->getMessage(),
-                'claim' => (string) $claim,
-                'error' => 'Gemini Connection Error: ' . $e->getMessage(),
-                'accuracy_score' => $this->generateAccuracyScoreFromExplanation('Gemini tidak terkoneksi', $claim),
-                'statistics' => $this->generateDefaultStatistics(),
-                'source_analysis' => [],
-            ];
+            try {
+                return [
+                    'success' => true,
+                    'explanation' => 'Gemini AI tidak terkoneksi',
+                    'detailed_analysis' => 'Terjadi kesalahan saat menghubungi Gemini AI.',
+                    'claim' => (string) $claim,
+                    'error' => 'Gemini Connection Error',
+                    'accuracy_score' => $this->generateAccuracyScoreFromExplanation('Gemini tidak terkoneksi', $claim),
+                    'statistics' => $this->generateDefaultStatistics(),
+                    'source_analysis' => [],
+                ];
+            } catch (\Exception $fallbackError) {
+                Log::error('Fallback error: ' . $fallbackError->getMessage());
+                return $this->getFallbackWithSearchData($claim, $searchResults);
+            }
         }
     }
 
