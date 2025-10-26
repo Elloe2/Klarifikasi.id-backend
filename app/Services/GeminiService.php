@@ -121,50 +121,51 @@ class GeminiService
                 Log::error('Gemini API Error Status: ' . $response->status());
                 Log::error('Gemini API Error Body: ' . $response->body());
                 
-                // Log detailed error info
-                $errorBody = $response->json();
-                if (isset($errorBody['error'])) {
-                    Log::error('Gemini API Error Details: ' . json_encode($errorBody['error']));
-                }
-                
-                // Return fallback dengan informasi dari Google CSE
-                return $this->getFallbackWithSearchData($claim, $searchResults);
+                // Return error response dengan pesan jelas
+                return [
+                    'success' => true,
+                    'explanation' => 'Gemini AI tidak terkoneksi',
+                    'detailed_analysis' => 'Layanan Gemini AI sedang tidak tersedia. Status: ' . $response->status(),
+                    'claim' => (string) $claim,
+                    'error' => 'Gemini API Error: ' . $response->status(),
+                    'accuracy_score' => $this->generateAccuracyScoreFromExplanation('Gemini tidak terkoneksi', $claim),
+                    'statistics' => $this->generateDefaultStatistics(),
+                    'source_analysis' => [],
+                ];
             }
 
         } catch (\Exception $e) {
             Log::error('Gemini Service Exception: ' . $e->getMessage());
-            Log::error('Gemini Service Exception Trace: ' . $e->getTraceAsString());
-            return $this->getFallbackWithSearchData($claim, $searchResults);
+            
+            // Return error response dengan pesan jelas
+            return [
+                'success' => true,
+                'explanation' => 'Gemini AI tidak terkoneksi',
+                'detailed_analysis' => 'Terjadi kesalahan saat menghubungi Gemini AI: ' . $e->getMessage(),
+                'claim' => (string) $claim,
+                'error' => 'Gemini Connection Error: ' . $e->getMessage(),
+                'accuracy_score' => $this->generateAccuracyScoreFromExplanation('Gemini tidak terkoneksi', $claim),
+                'statistics' => $this->generateDefaultStatistics(),
+                'source_analysis' => [],
+            ];
         }
     }
 
     /**
      * Membangun prompt untuk Gemini AI dengan data pencarian Google CSE
-     * ULTRA SIMPLE version - hanya explanation dan analysis
+     * SUPER SIMPLE version - minimal format
      */
     private function buildPrompt(string $claim, array $searchResults = []): string
     {
         $searchData = '';
         
         if (!empty($searchResults)) {
-            $items = [];
-            foreach ($searchResults as $index => $result) {
-                $items[] = sprintf(
-                    '%d. %s',
-                    $index + 1,
-                    $result['snippet'] ?? 'Tidak ada snippet'
-                );
+            foreach (array_slice($searchResults, 0, 5) as $index => $result) {
+                $searchData .= "\n" . ($index + 1) . ". " . ($result['snippet'] ?? '');
             }
-            $searchData = "\n\nData:\n" . implode("\n", $items);
         }
 
-        return <<<PROMPT
-Analisis klaim ini: "{$claim}"{$searchData}
-
-Berikan jawaban dalam format:
-explanation: [ringkasan singkat]
-analysis: [analisis mendalam]
-PROMPT;
+        return "Analisis klaim: {$claim}{$searchData}\n\nBerikan ringkasan dan analisis.";
     }
 
     /**
@@ -318,11 +319,11 @@ PROMPT;
      */
     private function getFallbackResponse(string $claim): array
     {
-        $explanation = 'Tidak dapat menganalisis klaim ini saat ini. Silakan coba lagi nanti.';
-        $analysis = 'Tidak ada analisis tersedia';
+        $explanation = 'Gemini AI tidak terkoneksi';
+        $analysis = 'Layanan Gemini AI sedang tidak tersedia. Silakan coba lagi nanti.';
         
         $response = [
-            'success' => true,  // Set true agar frontend bisa display dengan enhanced data
+            'success' => true,
             'explanation' => $explanation,
             'detailed_analysis' => $analysis,
             'claim' => (string) $claim,
