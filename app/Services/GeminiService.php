@@ -302,7 +302,7 @@ PROMPT;
     }
 
     /**
-     * Bersihkan response dari markdown dan formatting
+     * Bersihkan response dari markdown formatting dan JSON artifacts
      */
     private function cleanResponse(string $text): string
     {
@@ -313,6 +313,22 @@ PROMPT;
         // Hapus markdown formatting
         $text = preg_replace('/\*\*(.*?)\*\*/', '$1', $text);
         $text = preg_replace('/\*(.*?)\*/', '$1', $text);
+        
+        // Hapus escaped quotes dan JSON artifacts
+        $text = preg_replace('/\\"/', '"', $text);
+        $text = preg_replace('/\\\\//', '\\', $text);
+        
+        // Hapus "Klaim {" pattern di awal
+        $text = preg_replace('/^Klaim\s*\{/', '', $text);
+        
+        // Hapus pattern: {"explanation": "..." di awal (jika JSON terputus)
+        $text = preg_replace('/^\{\s*"explanation"\s*:\s*"/', '', $text);
+        
+        // Hapus pattern: "Klaim \"..." di awal
+        $text = preg_replace('/^"Klaim\s*\\"/', '', $text);
+        
+        // Hapus trailing quotes dan braces
+        $text = preg_replace('/["}]+\s*$/', '', $text);
         
         // Hapus extra whitespace
         $text = preg_replace('/\s+/', ' ', $text);
