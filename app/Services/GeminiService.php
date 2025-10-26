@@ -99,11 +99,10 @@ class GeminiService
                         'safetyRatings' => $safetyRatings,
                     ]);
 
+                    // Use fallback dengan enhanced data
                     $fallback = $this->getFallbackWithSearchData($claim, $searchResults);
                     $message = $blockReason ? 'Analisis diblokir oleh Gemini AI.' : 'Gemini AI tidak mengembalikan analisis.';
-                    $fallback['success'] = false;
                     $fallback['explanation'] = $message;
-                    $fallback['sources'] = 'Gemini AI';
                     $fallback['error'] = $blockReason
                         ? 'Gemini AI memblokir analisis: ' . $blockReason
                         : 'Gemini AI tidak mengembalikan analisis.';
@@ -422,13 +421,22 @@ PROMPT;
             $analysis .= 'Silakan periksa sumber-sumber di atas untuk verifikasi lebih lanjut.';
         }
         
-        return [
+        $response = [
             'success' => true,
             'explanation' => $explanation,
-            'sources' => $sources,
-            'analysis' => $analysis,
+            'detailed_analysis' => $analysis,
             'claim' => (string) $claim,
         ];
+        
+        // ALWAYS add enhanced data untuk consistency
+        $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
+            $explanation,
+            $claim
+        );
+        $response['statistics'] = $this->generateDefaultStatistics();
+        $response['source_analysis'] = [];
+        
+        return $response;
     }
 
     /**
