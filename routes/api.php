@@ -16,11 +16,6 @@ Route::get('/health', function () {
     ]);
 });
 
-// MINIMAL test endpoint
-Route::any('/ping', function () {
-    return ['pong' => true, 'time' => time()];
-});
-
 // Test Google CSE connection
 Route::get('/test-google-cse', function () {
     try {
@@ -40,118 +35,9 @@ Route::get('/test-google-cse', function () {
     }
 });
 
-// Test Gemini API configuration
-Route::get('/test-gemini', function () {
-    try {
-        $key = config('services.gemini.api_key', env('GEMINI_API_KEY'));
-        $hardcodedKey = 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
-
-        return response()->json([
-            'gemini_configured' => !empty($key),
-            'key_from_env' => !empty($key),
-            'key_length' => strlen($key ?? ''),
-            'key_preview' => substr($key ?? '', 0, 10) . '...' . substr($key ?? '', -4),
-            'hardcoded_key_available' => !empty($hardcodedKey),
-            'hardcoded_preview' => substr($hardcodedKey, 0, 10) . '...' . substr($hardcodedKey, -4),
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => $e->getMessage()
-        ], 500);
-    }
-});
-
-// Test Gemini API dengan simple request (GET untuk mudah di-test dari browser)
-Route::get('/test-gemini-request', function () {
-    try {
-        $apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY'));
-        $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-        
-        if (empty($apiKey)) {
-            return response()->json(['error' => 'API Key not configured'], 400);
-        }
-        
-        \Illuminate\Support\Facades\Log::info('Testing Gemini API with key: ' . substr($apiKey, 0, 10) . '...');
-        
-        $response = \Illuminate\Support\Facades\Http::timeout(30)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                'X-goog-api-key' => $apiKey,
-            ])
-            ->post($baseUrl, [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => 'Halo, siapa nama Anda? Jawab dalam 1 kalimat saja.']
-                        ]
-                    ]
-                ],
-                'generationConfig' => [
-                    'temperature' => 0.7,
-                    'maxOutputTokens' => 100,
-                ],
-            ]);
-        
-        $result = [
-            'status' => $response->status(),
-            'successful' => $response->successful(),
-            'headers' => $response->headers(),
-        ];
-        
-        if ($response->successful()) {
-            $result['response'] = $response->json();
-            $result['text'] = data_get($response->json(), 'candidates.0.content.parts.0.text');
-        } else {
-            $result['error_body'] = $response->json();
-            $result['raw_body'] = substr($response->body(), 0, 1000);
-        }
-        
-        return response()->json($result);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-});
-
-// DIAGNOSTIC: Test if route is accessible
-Route::post('/search', function (Illuminate\Http\Request $request) {
-    try {
-        \Log::info('Search route hit', ['query' => $request->input('query')]);
-        
-        // Try to instantiate services
-        $googleService = app(\App\Services\GoogleSearchService::class);
-        $geminiService = app(\App\Services\GeminiService::class);
-        
-        \Log::info('Services instantiated successfully');
-        
-        // Return simple response
-        return response()->json([
-            'status' => 'ok',
-            'message' => 'Route accessible, services loaded',
-            'query' => $request->input('query'),
-            'results' => [],
-            'gemini_analysis' => [
-                'success' => true,
-                'explanation' => 'Diagnostic: Backend berfungsi',
-                'detailed_analysis' => 'Services dapat di-load',
-                'claim' => $request->input('query', ''),
-            ]
-        ]);
-    } catch (\Exception $e) {
-        \Log::error('Search route error', [
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        
-        return response()->json([
-            'error' => $e->getMessage(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-        ], 500);
-    }
-});
+// Route pencarian dengan autentikasi opsional
+Route::post('/search', [SearchController::class, 'search'])
+    ->middleware('throttle:10,1');
 
 // Route untuk mendapatkan hasil pencarian berdasarkan query
 Route::get('/search/{query}', [SearchController::class, 'searchByQuery'])

@@ -16,18 +16,16 @@ class GeminiService
 
     public function __construct()
     {
-        // Try to get from env/config first
-        $this->apiKey = config('services.gemini.api_key') ?? env('GEMINI_API_KEY');
-        
-        // Fallback to hardcoded key if not configured
-        if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
-            $this->apiKey = 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
-            Log::warning('Using hardcoded Gemini API Key (env not configured)');
-        }
+        $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY')) ?? 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
         
         // Log API key untuk debugging (hanya sebagian)
         $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
         Log::info('GeminiService initialized with API Key: ' . $maskedKey);
+        
+        // Validasi API key tanpa throw exception
+        if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
+            Log::error('Invalid or missing Gemini API Key: ' . $this->apiKey);
+        }
     }
 
     /**
@@ -46,9 +44,7 @@ class GeminiService
         }
         
         try {
-            Log::info('Gemini API Request: ' . $claim);
-            
-            $prompt = $this->buildPrompt($claim, $searchResults);
+            Log::info('Sending request to Gemini API...');
             
             $response = Http::timeout(30)
                 ->withHeaders([
@@ -59,25 +55,41 @@ class GeminiService
                     'contents' => [
                         [
                             'parts' => [
-                                ['text' => $prompt]
+                                ['text' => $this->buildPrompt($claim, $searchResults)]
                             ]
                         ]
                     ],
                     'generationConfig' => [
-                        'temperature' => 0.7,
-                        'maxOutputTokens' => 500,
+                        'temperature' => 0.1,
+                        'topK' => 1,
+                        'topP' => 1,
+                        'maxOutputTokens' => 1024,
+                    ],
+                    'safetySettings' => [
+                        [
+                            'category' => 'HARM_CATEGORY_HARASSMENT',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_HATE_SPEECH',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                            'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                        ]
                     ]
                 ]);
 
+            Log::info('Gemini API Response Status: ' . $response->status());
+            
             if ($response->successful()) {
-                try {
-                    $data = $response->json();
-                    $text = data_get($data, 'candidates.0.content.parts.0.text');
-                    Log::info('Gemini response received successfully');
-                } catch (\Exception $parseError) {
-                    Log::error('JSON parse error: ' . $parseError->getMessage());
-                    throw $parseError;
-                }
+                $data = $response->json();
+                $text = data_get($data, 'candidates.0.content.parts.0.text');
 
                 if (!is_string($text) || trim($text) === '') {
                     $blockReason = data_get($data, 'promptFeedback.blockReason');
@@ -87,10 +99,11 @@ class GeminiService
                         'safetyRatings' => $safetyRatings,
                     ]);
 
-                    // Use fallback dengan enhanced data
                     $fallback = $this->getFallbackWithSearchData($claim, $searchResults);
                     $message = $blockReason ? 'Analisis diblokir oleh Gemini AI.' : 'Gemini AI tidak mengembalikan analisis.';
+                    $fallback['success'] = false;
                     $fallback['explanation'] = $message;
+                    $fallback['sources'] = 'Gemini AI';
                     $fallback['error'] = $blockReason
                         ? 'Gemini AI memblokir analisis: ' . $blockReason
                         : 'Gemini AI tidak mengembalikan analisis.';
@@ -103,90 +116,165 @@ class GeminiService
                 Log::error('Gemini API Error Status: ' . $response->status());
                 Log::error('Gemini API Error Body: ' . $response->body());
                 
-                // Return error response dengan pesan jelas
-                return [
-                    'success' => true,
-                    'explanation' => 'Gemini AI tidak terkoneksi',
-                    'detailed_analysis' => 'Layanan Gemini AI sedang tidak tersedia. Status: ' . $response->status(),
-                    'claim' => (string) $claim,
-                    'error' => 'Gemini API Error: ' . $response->status(),
-                    'accuracy_score' => $this->generateAccuracyScoreFromExplanation('Gemini tidak terkoneksi', $claim),
-                    'statistics' => $this->generateDefaultStatistics(),
-                    'source_analysis' => [],
-                ];
+                // Return fallback dengan informasi dari Google CSE
+                return $this->getFallbackWithSearchData($claim, $searchResults);
             }
 
         } catch (\Exception $e) {
             Log::error('Gemini Service Exception: ' . $e->getMessage());
-            Log::error('Exception trace: ' . $e->getTraceAsString());
-            
-            // Return error response dengan pesan jelas
-            try {
-                return [
-                    'success' => true,
-                    'explanation' => 'Gemini AI tidak terkoneksi',
-                    'detailed_analysis' => 'Terjadi kesalahan saat menghubungi Gemini AI.',
-                    'claim' => (string) $claim,
-                    'error' => 'Gemini Connection Error',
-                    'accuracy_score' => $this->generateAccuracyScoreFromExplanation('Gemini tidak terkoneksi', $claim),
-                    'statistics' => $this->generateDefaultStatistics(),
-                    'source_analysis' => [],
-                ];
-            } catch (\Exception $fallbackError) {
-                Log::error('Fallback error: ' . $fallbackError->getMessage());
-                return $this->getFallbackWithSearchData($claim, $searchResults);
-            }
+            Log::error('Gemini Service Exception Trace: ' . $e->getTraceAsString());
+            return $this->getFallbackWithSearchData($claim, $searchResults);
         }
     }
 
     /**
      * Membangun prompt untuk Gemini AI dengan data pencarian Google CSE
-     * ULTRA SIMPLE - hanya minta plain text response
      */
     private function buildPrompt(string $claim, array $searchResults = []): string
     {
-        return "Analisis klaim ini dengan singkat: {$claim}";
+        $searchData = '';
+        
+        if (!empty($searchResults)) {
+            $items = [];
+            foreach ($searchResults as $index => $result) {
+                $items[] = sprintf(
+                    '%d. situs="%s" judul="%s" url="%s" ringkasan="%s" domain="%s"',
+                    $index + 1,
+                    $result['displayLink'] ?? 'Tidak ada domain',
+                    $result['title'] ?? 'Tidak ada judul',
+                    $result['link'] ?? 'Tidak ada URL',
+                    $result['snippet'] ?? 'Tidak ada snippet',
+                    $result['displayLink'] ?? 'Tidak ada domain'
+                );
+            }
+            $searchData = "\n\nDATA_PENDUKUNG:\n" . implode("\n", $items);
+        }
+
+        $jsonTemplate = json_encode([
+            'explanation' => 'Penjelasan singkat dan objektif tentang klaim',
+            'analysis' => 'Analisis mendalam berdasarkan data yang tersedia',
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        return <<<PROMPT
+Anda adalah pakar pemeriksa fakta. Analisis klaim berikut secara objektif dan ringkas dalam bahasa Indonesia.
+
+KLAIM: "{$claim}"{$searchData}
+
+INSTRUKSI:
+- Gunakan hanya informasi dari DATA_PENDUKUNG di atas.
+- Jika data tidak cukup, nyatakan bahwa bukti tidak memadai.
+- Jika menyebutkan sumber, gunakan nama situs/portal (misal kompas.com) bukan nomor indeks dan gabungkan dengan konteksnya.
+- Jangan tambahkan penjelasan di luar struktur JSON.
+
+FORMAT OUTPUT (JSON valid tanpa markdown):
+{$jsonTemplate}
+PROMPT;
     }
 
     /**
      * Parse response dari Gemini AI
-     * ULTRA SIMPLE - treat semua response sebagai plain text
      */
     private function parseResponse(string $text, string $claim): array
     {
         try {
-            $cleanText = trim($text);
+            // Log response untuk debugging
+            Log::info('Gemini Raw Response: ' . $text);
             
-            // Use full text as both explanation and analysis
-            $explanation = $cleanText;
-            $analysis = $cleanText;
+            // Bersihkan response dari markdown formatting jika ada
+            $cleanText = $this->cleanResponse($text);
             
-            // Limit explanation length
+            // Coba extract JSON dari response
+            $jsonStart = strpos($cleanText, '{');
+            $jsonEnd = strrpos($cleanText, '}');
+            
+            if ($jsonStart !== false && $jsonEnd !== false) {
+                $jsonString = substr($cleanText, $jsonStart, $jsonEnd - $jsonStart + 1);
+                Log::info('Extracted JSON: ' . $jsonString);
+                
+                $data = json_decode($jsonString, true);
+                
+                if ($data && isset($data['explanation'])) {
+                    Log::info('Successfully parsed JSON response');
+                    return [
+                        'success' => true,
+                        'explanation' => (string) ($data['explanation'] ?? 'Tidak ada penjelasan tersedia'),
+                        'sources' => (string) ($data['sources'] ?? ''),
+                        'analysis' => (string) ($data['analysis'] ?? 'Tidak ada analisis tersedia'),
+                        'claim' => (string) $claim,
+                    ];
+                } else {
+                    Log::warning('JSON parsed but missing explanation field');
+                }
+            } else {
+                Log::warning('No JSON found in response');
+            }
+            
+            // Fallback jika JSON parsing gagal - coba parse manual
+            return $this->parseTextResponse($cleanText, $claim);
+            
+        } catch (\Exception $e) {
+            Log::error('Error parsing Gemini response: ' . $e->getMessage());
+            return $this->getFallbackResponse($claim);
+        }
+    }
+
+    /**
+     * Bersihkan response dari markdown dan formatting
+     */
+    private function cleanResponse(string $text): string
+    {
+        // Hapus markdown code blocks
+        $text = preg_replace('/```json\s*/', '', $text);
+        $text = preg_replace('/```\s*/', '', $text);
+        
+        // Hapus markdown formatting
+        $text = preg_replace('/\*\*(.*?)\*\*/', '$1', $text);
+        $text = preg_replace('/\*(.*?)\*/', '$1', $text);
+        
+        // Hapus extra whitespace
+        $text = preg_replace('/\s+/', ' ', $text);
+        
+        return trim($text);
+    }
+
+    /**
+     * Parse response text jika JSON parsing gagal
+     */
+    private function parseTextResponse(string $text, string $claim): array
+    {
+        // Jika response tidak dalam format JSON, coba extract informasi manual
+        $explanation = 'Tidak dapat menganalisis klaim ini dengan pasti.';
+        $sources = '';
+        $analysis = 'Tidak ada analisis tersedia';
+        
+        // Coba extract penjelasan dari response text
+        if (!empty($text)) {
+            // Ambil beberapa kalimat pertama sebagai explanation
+            $sentences = preg_split('/[.!?]+/', $text);
+            $explanation = trim($sentences[0] ?? $text);
+            
+            // Jika explanation terlalu panjang, potong
             if (strlen($explanation) > 200) {
                 $explanation = substr($explanation, 0, 200) . '...';
             }
             
-            $response = [
-                'success' => true,
-                'explanation' => $explanation ?: 'Analisis diterima dari Gemini AI',
-                'detailed_analysis' => $analysis,
-                'claim' => (string) $claim,
-            ];
+            // Gunakan seluruh response sebagai analysis
+            $analysis = $text;
+            if (strlen($analysis) > 500) {
+                $analysis = substr($analysis, 0, 500) . '...';
+            }
             
-            // Always add enhanced data
-            $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
-                $cleanText,
-                $claim
-            );
-            $response['statistics'] = $this->generateDefaultStatistics();
-            $response['source_analysis'] = [];
-            
-            return $response;
-            
-        } catch (\Exception $e) {
-            Log::error('Error parsing response: ' . $e->getMessage());
-            return $this->getFallbackResponse($claim);
+            $sources = '';
         }
+        
+        // Pastikan semua field adalah string
+        return [
+            'success' => true,
+            'explanation' => (string) $explanation,
+            'sources' => (string) $sources,
+            'analysis' => (string) $analysis,
+            'claim' => (string) $claim,
+        ];
     }
 
     /**
@@ -194,26 +282,14 @@ class GeminiService
      */
     private function getFallbackResponse(string $claim): array
     {
-        $explanation = 'Gemini AI tidak terkoneksi';
-        $analysis = 'Layanan Gemini AI sedang tidak tersedia. Silakan coba lagi nanti.';
-        
-        $response = [
-            'success' => true,
-            'explanation' => $explanation,
-            'detailed_analysis' => $analysis,
+        return [
+            'success' => false,
+            'explanation' => 'Tidak dapat menganalisis klaim ini saat ini. Silakan coba lagi nanti.',
+            'sources' => '',
+            'analysis' => 'Tidak ada analisis tersedia',
             'claim' => (string) $claim,
             'error' => 'Gemini API tidak tersedia'
         ];
-        
-        // ALWAYS add enhanced data untuk consistency
-        $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
-            $explanation,
-            $claim
-        );
-        $response['statistics'] = $this->generateDefaultStatistics();
-        $response['source_analysis'] = [];
-        
-        return $response;
     }
     private function getFallbackWithSearchData(string $claim, array $searchResults = []): array
     {
@@ -234,83 +310,12 @@ class GeminiService
             $analysis .= 'Silakan periksa sumber-sumber di atas untuk verifikasi lebih lanjut.';
         }
         
-        $response = [
+        return [
             'success' => true,
             'explanation' => $explanation,
-            'detailed_analysis' => $analysis,
+            'sources' => $sources,
+            'analysis' => $analysis,
             'claim' => (string) $claim,
-        ];
-        
-        // ALWAYS add enhanced data untuk consistency
-        $response['accuracy_score'] = $this->generateAccuracyScoreFromExplanation(
-            $explanation,
-            $claim
-        );
-        $response['statistics'] = $this->generateDefaultStatistics();
-        $response['source_analysis'] = [];
-        
-        return $response;
-    }
-
-    /**
-     * Generate accuracy score dari explanation jika Gemini tidak mengirim structured data
-     */
-    private function generateAccuracyScoreFromExplanation(string $explanation, string $claim): array
-    {
-        // Analisis explanation untuk determine verdict
-        $explanationLower = strtolower($explanation);
-        
-        // Heuristic: cek keywords untuk determine verdict
-        $isFakta = (
-            strpos($explanationLower, 'benar') !== false ||
-            strpos($explanationLower, 'terbukti') !== false ||
-            strpos($explanationLower, 'akurat') !== false ||
-            strpos($explanationLower, 'tepat') !== false
-        );
-        
-        $isHoax = (
-            strpos($explanationLower, 'salah') !== false ||
-            strpos($explanationLower, 'hoax') !== false ||
-            strpos($explanationLower, 'tidak benar') !== false ||
-            strpos($explanationLower, 'menyesatkan') !== false ||
-            strpos($explanationLower, 'palsu') !== false
-        );
-        
-        if ($isFakta && !$isHoax) {
-            $verdict = 'FAKTA';
-            $confidence = 75;
-            $reasoning = 'Berdasarkan analisis, klaim ini didukung oleh bukti yang tersedia.';
-            $recommendation = 'Klaim ini dapat dipercaya berdasarkan sumber-sumber yang ditemukan.';
-        } elseif ($isHoax && !$isFakta) {
-            $verdict = 'HOAX';
-            $confidence = 70;
-            $reasoning = 'Berdasarkan analisis, klaim ini tidak didukung oleh bukti yang valid.';
-            $recommendation = 'Hati-hati dengan klaim ini, kemungkinan besar tidak akurat.';
-        } else {
-            $verdict = 'RAGU-RAGU';
-            $confidence = 60;
-            $reasoning = 'Berdasarkan analisis, klaim ini memiliki bukti yang beragam dan memerlukan verifikasi lebih lanjut.';
-            $recommendation = 'Cari sumber tambahan untuk verifikasi lebih mendalam.';
-        }
-        
-        return [
-            'verdict' => $verdict,
-            'confidence' => $confidence,
-            'reasoning' => $reasoning,
-            'recommendation' => $recommendation,
-        ];
-    }
-
-    /**
-     * Generate default statistics
-     */
-    private function generateDefaultStatistics(): array
-    {
-        return [
-            'total_sources' => 0,
-            'support_count' => 0,
-            'oppose_count' => 0,
-            'neutral_count' => 0,
         ];
     }
 }
