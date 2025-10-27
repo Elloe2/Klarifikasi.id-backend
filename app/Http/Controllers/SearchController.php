@@ -7,6 +7,7 @@ use App\Services\GeminiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
@@ -43,9 +44,11 @@ class SearchController extends Controller
         try {
             $items = $this->searchService->search($validated['query']);
         } catch (RuntimeException $exception) {
-            return response()->json([
-                'message' => $exception->getMessage(),
-            ], 502);
+            Log::warning('GoogleSearchService failed, returning fallback results.', [
+                'error' => $exception->getMessage(),
+            ]);
+
+            $items = [];
         }
 
         // Analisis klaim dengan Gemini AI menggunakan hasil pencarian Google CSE
@@ -55,6 +58,10 @@ class SearchController extends Controller
             'query' => $validated['query'],
             'results' => $items,
             'gemini_analysis' => $geminiAnalysis,
+            'fallback' => empty($items),
+            'message' => empty($items)
+                ? 'Google Custom Search tidak tersedia, menampilkan fallback AI.'
+                : null,
         ]);
     }
 

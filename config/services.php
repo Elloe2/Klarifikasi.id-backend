@@ -43,6 +43,7 @@ return [
 
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
+        'enabled' => env('GEMINI_ENABLE_REMOTE', true),
     ],
 
 ];

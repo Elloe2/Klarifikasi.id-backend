@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -13,10 +14,12 @@ class GeminiService
 {
     private string $apiKey;
     private string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    private bool $enabled;
 
     public function __construct()
     {
         $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY')) ?? 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
+        $this->enabled = (bool) config('services.gemini.enabled', true);
         
         // Log API key untuk debugging (hanya sebagian)
         $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
@@ -36,6 +39,12 @@ class GeminiService
         // Log API key status
         $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
         Log::info('GeminiService analyzeClaim called with API Key: ' . $maskedKey);
+
+        // Saat environment lokal, hindari pemanggilan API eksternal dan gunakan fallback
+        if (!$this->enabled) {
+            Log::info('GeminiService skipping external request (disabled by configuration).');
+            return $this->getFallbackWithSearchData($claim, $searchResults);
+        }
         
         // Check API key validity
         if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
@@ -120,6 +129,9 @@ class GeminiService
                 return $this->getFallbackWithSearchData($claim, $searchResults);
             }
 
+        } catch (ConnectionException $e) {
+            Log::warning('Gemini API unreachable: ' . $e->getMessage());
+            return $this->getFallbackWithSearchData($claim, $searchResults);
         } catch (\Exception $e) {
             Log::error('Gemini Service Exception: ' . $e->getMessage());
             Log::error('Gemini Service Exception Trace: ' . $e->getTraceAsString());
