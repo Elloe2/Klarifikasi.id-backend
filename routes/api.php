@@ -3,6 +3,10 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\SearchController;
+use function response;
+use function now;
+use function app;
+use function config;
 
 // Simple health check endpoint - harus di atas untuk priority
 Route::get('/health', function () {

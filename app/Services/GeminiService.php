@@ -4,6 +4,9 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use function config;
+use function env;
+use function data_get;
 
 /**
  * Service untuk berkomunikasi dengan Google Gemini AI
@@ -16,7 +19,7 @@ class GeminiService
 
     public function __construct()
     {
-        $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY')) ?? 'AIzaSyAvjaMWecq2PeHB8Vv4HBV8bBkKzzD9PmI';
+        $this->apiKey = config('services.gemini.api_key', env('GEMINI_API_KEY')) ?? '';
         
         // Log API key untuk debugging (hanya sebagian)
         $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
@@ -89,11 +92,11 @@ class GeminiService
             
             if ($response->successful()) {
                 $data = $response->json();
-                $text = data_get($data, 'candidates.0.content.parts.0.text');
+                $text = \data_get($data, 'candidates.0.content.parts.0.text');
 
                 if (!is_string($text) || trim($text) === '') {
-                    $blockReason = data_get($data, 'promptFeedback.blockReason');
-                    $safetyRatings = data_get($data, 'promptFeedback.safetyRatings');
+                    $blockReason = \data_get($data, 'promptFeedback.blockReason');
+                    $safetyRatings = \data_get($data, 'promptFeedback.safetyRatings');
                     Log::error('Gemini API returned no analysable candidates.', [
                         'blockReason' => $blockReason,
                         'safetyRatings' => $safetyRatings,
@@ -165,6 +168,7 @@ INSTRUKSI:
 - Jika data tidak cukup, nyatakan bahwa bukti tidak memadai.
 - Jika menyebutkan sumber, gunakan nama situs/portal (misal kompas.com) bukan nomor indeks dan gabungkan dengan konteksnya.
 - Jangan tambahkan penjelasan di luar struktur JSON.
+- jika menurut mu data mendukung maka berikan lah jawaban fakta jika tidak mendukung maka berikan lah jawaban tidak hoax.
 
 FORMAT OUTPUT (JSON valid tanpa markdown):
 {$jsonTemplate}
