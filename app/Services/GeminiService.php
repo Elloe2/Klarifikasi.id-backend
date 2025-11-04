@@ -41,11 +41,15 @@ class GeminiService
     {
         // Log API key status
         $maskedKey = substr($this->apiKey, 0, 10) . '...' . substr($this->apiKey, -4);
-        Log::info('GeminiService analyzeClaim called with API Key: ' . $maskedKey);
+        Log::info('GeminiService analyzeClaim called', [
+            'claim' => $claim,
+            'api_key_masked' => $maskedKey,
+            'search_results_count' => count($searchResults)
+        ]);
 
         // Saat environment lokal, hindari pemanggilan API eksternal dan gunakan fallback
         if (!$this->enabled) {
-            Log::info('GeminiService skipping external request (disabled by configuration).');
+            Log::warning('GeminiService disabled by configuration, using fallback');
             return $this->getFallbackWithSearchData($claim, $searchResults);
         }
         
@@ -179,11 +183,18 @@ INSTRUKSI:
 - Gunakan hanya informasi dari DATA_PENDUKUNG di atas.
 - Jika data tidak cukup, nyatakan bahwa bukti tidak memadai.
 - Jika menyebutkan sumber, gunakan nama situs/portal (misal kompas.com) bukan nomor indeks dan gabungkan dengan konteksnya.
-- Jangan tambahkan penjelasan di luar struktur JSON.
-- jika menurut mu data mendukung maka berikan lah jawaban fakta jika tidak mendukung maka berikan lah jawaban tidak hoax.
+- WAJIB output dalam format JSON yang valid.
+- JANGAN tambahkan markdown code blocks (```json atau ```).
+- JANGAN tambahkan penjelasan di luar struktur JSON.
+- Jika data mendukung klaim, sebutkan sebagai "FAKTA". Jika data membantah klaim, sebutkan sebagai "HOAX".
 
-FORMAT OUTPUT (JSON valid tanpa markdown):
+FORMAT OUTPUT (JSON murni tanpa markdown):
 {$jsonTemplate}
+
+CONTOH OUTPUT YANG BENAR:
+{"explanation": "Penjelasan singkat", "analysis": "Analisis detail"}
+
+PENTING: Hanya output JSON, tidak ada text lain!
 PROMPT;
     }
 
@@ -317,11 +328,11 @@ PROMPT;
             $explanation = 'Berdasarkan hasil pencarian Google, klaim ini memerlukan verifikasi lebih lanjut.';
             $sources = '';
             
-            $analysis = 'Analisis berdasarkan hasil pencarian Google:\n\n';
+            $analysis = "Analisis berdasarkan hasil pencarian Google:\n\n";
             foreach (array_slice($searchResults, 0, 3) as $index => $result) {
-                $analysis .= ($index + 1) . '. ' . ($result['title'] ?? 'Tidak ada judul') . '\n';
-                $analysis .= '   URL: ' . ($result['link'] ?? 'Tidak ada URL') . '\n';
-                $analysis .= '   Snippet: ' . substr($result['snippet'] ?? 'Tidak ada snippet', 0, 100) . '...\n\n';
+                $analysis .= ($index + 1) . '. ' . ($result['title'] ?? 'Tidak ada judul') . "\n";
+                $analysis .= '   URL: ' . ($result['link'] ?? 'Tidak ada URL') . "\n";
+                $analysis .= '   Snippet: ' . substr($result['snippet'] ?? 'Tidak ada snippet', 0, 100) . "...\n\n";
             }
             $analysis .= 'Silakan periksa sumber-sumber di atas untuk verifikasi lebih lanjut.';
         }
