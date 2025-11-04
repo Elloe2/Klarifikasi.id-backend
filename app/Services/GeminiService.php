@@ -291,11 +291,15 @@ PROMPT;
                         $sourcesUsed = implode(', ', $data['sources_used']);
                     }
                     
+                    // Format social media links in explanation and analysis
+                    $explanation = $this->formatSocialMediaLinks((string) ($data['explanation'] ?? 'Tidak ada penjelasan tersedia'));
+                    $analysis = $this->formatSocialMediaLinks((string) ($data['analysis'] ?? 'Tidak ada analisis tersedia'));
+                    
                     return [
                         'success' => true,
                         'verdict' => (string) ($data['verdict'] ?? 'MEMERLUKAN_VERIFIKASI'),
-                        'explanation' => (string) ($data['explanation'] ?? 'Tidak ada penjelasan tersedia'),
-                        'analysis' => (string) ($data['analysis'] ?? 'Tidak ada analisis tersedia'),
+                        'explanation' => $explanation,
+                        'analysis' => $analysis,
                         'confidence' => (string) ($data['confidence'] ?? 'rendah'),
                         'sources' => $sourcesUsed,
                         'claim' => (string) $claim,
@@ -333,6 +337,34 @@ PROMPT;
         $text = preg_replace('/\s+/', ' ', $text);
         
         return trim($text);
+    }
+
+    /**
+     * Format social media domain names to "Postingan di [Platform]"
+     */
+    private function formatSocialMediaLinks(string $text): string
+    {
+        // Replace social media domains with formatted text
+        // Use word boundaries to avoid replacing partial matches
+        $replacements = [
+            '/\binstagram\.com\b/i' => 'postingan di Instagram',
+            '/\bfacebook\.com\b/i' => 'postingan di Facebook',
+            '/\bfb\.com\b/i' => 'postingan di Facebook',
+            '/\btwitter\.com\b/i' => 'postingan di X',
+            '/\bx\.com\b/i' => 'postingan di X',
+            '/\byoutube\.com\b/i' => 'postingan di YouTube',
+            '/\byoutu\.be\b/i' => 'postingan di YouTube',
+            '/\breddit\.com\b/i' => 'postingan di Reddit',
+            '/\btiktok\.com\b/i' => 'postingan di TikTok',
+            '/\blinkedin\.com\b/i' => 'postingan di LinkedIn',
+            '/\bthreads\.net\b/i' => 'postingan di Threads',
+        ];
+
+        foreach ($replacements as $pattern => $replacement) {
+            $text = preg_replace($pattern, $replacement, $text);
+        }
+
+        return $text;
     }
 
     /**
@@ -424,12 +456,15 @@ PROMPT;
                 $analysis .= "   URL: {$url}\n\n";
             }
             $analysis .= "Untuk verifikasi yang akurat, silakan baca artikel lengkap dari sumber-sumber di atas. AI tidak dapat memberikan kesimpulan definitif tanpa analisis mendalam.";
+            
+            // Format social media links in analysis
+            $analysis = $this->formatSocialMediaLinks($analysis);
         }
         
         return [
             'success' => true,
             'verdict' => $verdict,
-            'explanation' => $explanation,
+            'explanation' => $this->formatSocialMediaLinks($explanation),
             'analysis' => $analysis,
             'confidence' => $confidence,
             'sources' => $sources,
