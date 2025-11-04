@@ -152,49 +152,111 @@ class GeminiService
     private function buildPrompt(string $claim, array $searchResults = []): string
     {
         $searchData = '';
+        $sourceCount = 0;
         
         if (!empty($searchResults)) {
             $items = [];
             foreach ($searchResults as $index => $result) {
+                $sourceCount++;
                 $items[] = sprintf(
-                    '%d. situs="%s" judul="%s" url="%s" ringkasan="%s" domain="%s"',
+                    "SUMBER %d:\n  Domain: %s\n  Judul: %s\n  URL: %s\n  Ringkasan: %s",
                     $index + 1,
                     $result['displayLink'] ?? 'Tidak ada domain',
                     $result['title'] ?? 'Tidak ada judul',
                     $result['link'] ?? 'Tidak ada URL',
-                    $result['snippet'] ?? 'Tidak ada snippet',
-                    $result['displayLink'] ?? 'Tidak ada domain'
+                    $result['snippet'] ?? 'Tidak ada snippet'
                 );
             }
-            $searchData = "\n\nDATA_PENDUKUNG:\n" . implode("\n", $items);
+            $searchData = "\n\nDATA HASIL PENCARIAN GOOGLE CSE (" . $sourceCount . " sumber):\n" . implode("\n\n", $items);
         }
 
         $jsonTemplate = json_encode([
-            'explanation' => 'Penjelasan singkat dan objektif tentang klaim',
-            'analysis' => 'Analisis mendalam berdasarkan data yang tersedia',
+            'verdict' => 'DIDUKUNG_DATA|TIDAK_DIDUKUNG_DATA|MEMERLUKAN_VERIFIKASI',
+            'explanation' => 'Penjelasan singkat kesimpulan (1-2 kalimat)',
+            'analysis' => 'Analisis mendalam dengan menyebutkan sumber spesifik',
+            'confidence' => 'tinggi|sedang|rendah',
+            'sources_used' => ['domain1.com', 'domain2.com']
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
         return <<<PROMPT
-Anda adalah pakar pemeriksa fakta. Analisis klaim berikut secara objektif dan ringkas dalam bahasa Indonesia.
+Anda adalah AI fact-checker profesional. Tugas Anda: Analisis klaim berdasarkan hasil pencarian Google CSE dan tentukan apakah klaim DIDUKUNG atau TIDAK DIDUKUNG oleh data.
 
-KLAIM: "{$claim}"{$searchData}
+=== KLAIM YANG HARUS DIANALISIS ===
+"{$claim}"{$searchData}
 
-INSTRUKSI:
-- Gunakan hanya informasi dari DATA_PENDUKUNG di atas.
-- Jika data tidak cukup, nyatakan bahwa bukti tidak memadai.
-- Jika menyebutkan sumber, gunakan nama situs/portal (misal kompas.com) bukan nomor indeks dan gabungkan dengan konteksnya.
-- WAJIB output dalam format JSON yang valid.
-- JANGAN tambahkan markdown code blocks (```json atau ```).
-- JANGAN tambahkan penjelasan di luar struktur JSON.
-- Jika data mendukung klaim, sebutkan sebagai "FAKTA". Jika data membantah klaim, sebutkan sebagai "HOAX".
+=== INSTRUKSI ANALISIS ===
 
-FORMAT OUTPUT (JSON murni tanpa markdown):
+1. BACA SEMUA SUMBER:
+   - Periksa setiap sumber dari DATA HASIL PENCARIAN GOOGLE CSE
+   - Perhatikan domain sumber (kredibilitas media)
+   - Analisis ringkasan/snippet dari setiap sumber
+
+2. BANDINGKAN DENGAN KLAIM:
+   - Apakah sumber-sumber MENDUKUNG klaim?
+   - Apakah sumber-sumber MEMBANTAH klaim?
+   - Apakah ada KONTRADIKSI antar sumber?
+
+3. TENTUKAN VERDICT:
+   - "DIDUKUNG_DATA": Jika mayoritas sumber terpercaya mendukung klaim
+   - "TIDAK_DIDUKUNG_DATA": Jika mayoritas sumber terpercaya membantah klaim
+   - "MEMERLUKAN_VERIFIKASI": Jika:
+     * Data tidak cukup untuk menyimpulkan
+     * Sumber saling bertentangan
+     * Tidak ada sumber yang membahas klaim ini
+
+4. TULIS ANALISIS:
+   - Sebutkan sumber spesifik (nama domain, bukan nomor)
+   - Contoh BENAR: "Menurut kompas.com, ..."
+   - Contoh SALAH: "Menurut sumber nomor 1, ..."
+   - Jelaskan apa yang dikatakan setiap sumber
+
+5. CONFIDENCE LEVEL:
+   - "tinggi": Banyak sumber kredibel, konsisten
+   - "sedang": Beberapa sumber, cukup konsisten
+   - "rendah": Sedikit sumber atau saling bertentangan
+
+=== FORMAT OUTPUT ===
+
+WAJIB output JSON murni tanpa markdown:
 {$jsonTemplate}
 
-CONTOH OUTPUT YANG BENAR:
-{"explanation": "Penjelasan singkat", "analysis": "Analisis detail"}
+=== CONTOH OUTPUT ===
 
-PENTING: Hanya output JSON, tidak ada text lain!
+Contoh 1 - Klaim Didukung:
+{
+  "verdict": "DIDUKUNG_DATA",
+  "explanation": "Klaim ini didukung oleh beberapa sumber berita terpercaya yang mengonfirmasi informasi tersebut.",
+  "analysis": "Berdasarkan hasil pencarian, detik.com melaporkan bahwa [isi berita]. Kompas.com juga mengonfirmasi hal serupa dengan menyebutkan [detail]. Kedua sumber ini konsisten dalam mendukung klaim yang diberikan.",
+  "confidence": "tinggi",
+  "sources_used": ["detik.com", "kompas.com"]
+}
+
+Contoh 2 - Klaim Tidak Didukung:
+{
+  "verdict": "TIDAK_DIDUKUNG_DATA",
+  "explanation": "Klaim ini tidak didukung oleh data. Sumber-sumber terpercaya justru menunjukkan informasi yang berbeda.",
+  "analysis": "Menurut tempo.co, [fakta yang berbeda]. CNN Indonesia juga menyatakan bahwa [informasi yang membantah]. Tidak ada sumber yang mendukung klaim ini.",
+  "confidence": "tinggi",
+  "sources_used": ["tempo.co", "cnnindonesia.com"]
+}
+
+Contoh 3 - Memerlukan Verifikasi:
+{
+  "verdict": "MEMERLUKAN_VERIFIKASI",
+  "explanation": "Data yang tersedia tidak cukup untuk memverifikasi klaim ini. Diperlukan sumber tambahan.",
+  "analysis": "Hasil pencarian hanya menampilkan satu sumber yang membahas topik terkait, yaitu tribunnews.com, namun tidak secara spesifik membahas klaim yang diberikan. Diperlukan lebih banyak sumber kredibel untuk verifikasi.",
+  "confidence": "rendah",
+  "sources_used": ["tribunnews.com"]
+}
+
+=== ATURAN PENTING ===
+- HANYA output JSON, TIDAK ADA text lain
+- JANGAN gunakan markdown code blocks
+- WAJIB isi semua field (verdict, explanation, analysis, confidence, sources_used)
+- Gunakan bahasa Indonesia yang jelas dan objektif
+- Sebutkan nama domain sumber, bukan "sumber 1", "sumber 2"
+
+Mulai analisis sekarang!
 PROMPT;
     }
 
