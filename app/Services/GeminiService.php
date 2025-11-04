@@ -284,11 +284,20 @@ PROMPT;
                 
                 if ($data && isset($data['explanation'])) {
                     Log::info('Successfully parsed JSON response');
+                    
+                    // Extract sources_used array and convert to string
+                    $sourcesUsed = '';
+                    if (isset($data['sources_used']) && is_array($data['sources_used'])) {
+                        $sourcesUsed = implode(', ', $data['sources_used']);
+                    }
+                    
                     return [
                         'success' => true,
+                        'verdict' => (string) ($data['verdict'] ?? 'MEMERLUKAN_VERIFIKASI'),
                         'explanation' => (string) ($data['explanation'] ?? 'Tidak ada penjelasan tersedia'),
-                        'sources' => (string) ($data['sources'] ?? ''),
                         'analysis' => (string) ($data['analysis'] ?? 'Tidak ada analisis tersedia'),
+                        'confidence' => (string) ($data['confidence'] ?? 'rendah'),
+                        'sources' => $sourcesUsed,
                         'claim' => (string) $claim,
                     ];
                 } else {
@@ -373,9 +382,11 @@ PROMPT;
     {
         return [
             'success' => false,
+            'verdict' => 'MEMERLUKAN_VERIFIKASI',
             'explanation' => 'Tidak dapat menganalisis klaim ini saat ini. Silakan coba lagi nanti.',
-            'sources' => '',
             'analysis' => 'Tidak ada analisis tersedia',
+            'confidence' => 'rendah',
+            'sources' => '',
             'claim' => (string) $claim,
             'error' => 'Gemini API tidak tersedia'
         ];
@@ -385,25 +396,43 @@ PROMPT;
         $explanation = 'Tidak dapat menganalisis klaim ini dengan AI saat ini.';
         $sources = '';
         $analysis = 'Tidak ada analisis tersedia';
+        $verdict = 'MEMERLUKAN_VERIFIKASI';
+        $confidence = 'rendah';
         
         if (!empty($searchResults)) {
-            $explanation = 'Berdasarkan hasil pencarian Google, klaim ini memerlukan verifikasi lebih lanjut.';
-            $sources = '';
+            $explanation = 'Klaim ini memerlukan verifikasi lebih lanjut. Silakan periksa sumber-sumber berikut untuk informasi lebih detail.';
             
-            $analysis = "Analisis berdasarkan hasil pencarian Google:\n\n";
-            foreach (array_slice($searchResults, 0, 3) as $index => $result) {
-                $analysis .= ($index + 1) . '. ' . ($result['title'] ?? 'Tidak ada judul') . "\n";
-                $analysis .= '   URL: ' . ($result['link'] ?? 'Tidak ada URL') . "\n";
-                $analysis .= '   Snippet: ' . substr($result['snippet'] ?? 'Tidak ada snippet', 0, 100) . "...\n\n";
+            // Extract domain names from search results
+            $domains = [];
+            foreach (array_slice($searchResults, 0, 3) as $result) {
+                if (isset($result['displayLink'])) {
+                    $domains[] = $result['displayLink'];
+                }
             }
-            $analysis .= 'Silakan periksa sumber-sumber di atas untuk verifikasi lebih lanjut.';
+            $sources = implode(', ', $domains);
+            
+            $analysis = "Hasil pencarian Google CSE menampilkan beberapa sumber terkait:\n\n";
+            foreach (array_slice($searchResults, 0, 3) as $index => $result) {
+                $domain = $result['displayLink'] ?? 'Tidak ada domain';
+                $title = $result['title'] ?? 'Tidak ada judul';
+                $snippet = substr($result['snippet'] ?? 'Tidak ada snippet', 0, 150);
+                $url = $result['link'] ?? 'Tidak ada URL';
+                
+                $analysis .= ($index + 1) . ". {$domain}\n";
+                $analysis .= "   Judul: {$title}\n";
+                $analysis .= "   Ringkasan: {$snippet}...\n";
+                $analysis .= "   URL: {$url}\n\n";
+            }
+            $analysis .= "Untuk verifikasi yang akurat, silakan baca artikel lengkap dari sumber-sumber di atas. AI tidak dapat memberikan kesimpulan definitif tanpa analisis mendalam.";
         }
         
         return [
             'success' => true,
+            'verdict' => $verdict,
             'explanation' => $explanation,
-            'sources' => $sources,
             'analysis' => $analysis,
+            'confidence' => $confidence,
+            'sources' => $sources,
             'claim' => (string) $claim,
         ];
     }
