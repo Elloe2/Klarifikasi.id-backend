@@ -21,6 +21,8 @@ return [
 
     'allowed_origins' => [
         'https://www.klarifikasi.rj22d.my.id',
+        'https://klarifikasi.rj22d.my.id',
+        'https://elloe2.github.io',
         'https://klarifikasi.netlify.app',
         'http://localhost:3000',  // Flutter web port
         'http://localhost:3001',
