@@ -12,6 +12,47 @@
   <img src="https://via.placeholder.com/800x400/1a1a2e/ffffff?text=Klarifikasi.id+Dashboard" alt="Klarifikasi.id Screenshot" width="800"/>
 </p>
 
+## 📝 Ringkasan Singkat
+
+- **Backend:** Laravel 12.x + PHP 8.2, sekarang **dideploy di Railway** dengan database MySQL.
+- **Endpoint utama produksi:** `https://klarifikasiid-backend-production.up.railway.app`.
+- **Fitur inti:**
+  - `/api/search` – fact-checking dengan Google CSE + Gemini AI.
+  - `/api/search/{query}` – versi GET dari endpoint di atas.
+  - `/api/health` – health check sederhana.
+
+### Cara jalanin backend lokal (development)
+
+1. Salin `.env copy` menjadi `.env` lalu sesuaikan konfigurasi lokal jika perlu.
+2. Install dependency:
+
+   ```bash
+   composer install
+   ```
+
+3. Jalankan migration ke database yang kamu pakai (bisa MySQL Railway atau lokal):
+
+   ```bash
+   php artisan migrate
+   ```
+
+4. Jalankan server lokal:
+
+   ```bash
+   php artisan serve
+   ```
+
+### Ringkas: deployment ke Railway
+
+- Buat service Laravel + MySQL di Railway.
+- Set environment variables di service backend (APP_*, DB_*, GOOGLE_CSE_*, GEMINI_API_KEY, dll).
+- Pastikan database MySQL Railway sudah di-*migrate* (mis. dari lokal dengan `php artisan migrate --force`).
+- Generate domain di tab **Networking**, lalu set `APP_URL` ke domain tersebut.
+
+Setelah itu, backend siap diakses dari frontend dan dari tools seperti Postman.
+
+---
+
 ## ✨ Fitur Unggulan
 
 ### 🔍 **Smart Fact-Checking**
@@ -40,7 +81,7 @@
 
 ## 🌐 Production URLs
 
-- Backend (Laravel Cloud): https://klarifikasiid-backend-main-ki47jp.laravel.cloud/
+- Backend (Railway): https://klarifikasiid-backend-production.up.railway.app/
 - Frontend (Cloudhebat): https://www.klarifikasi.rj22d.my.id/
 
 ## 🏗️ Arsitektur Aplikasi
